@@ -4,6 +4,8 @@ import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 import { PrismaClient } from '../src/generated/prisma/client.js';
+import type { Prisma } from '../src/generated/prisma/client.js';
+import { PrismaService } from '../src/database/prisma.service.js';
 import { AppModule } from '../src/app.module.js';
 import { PasswordService } from '../src/modules/auth/password.service.js';
 import { setupApp } from '../src/setup-app.js';
@@ -342,5 +344,167 @@ describe('pacientes HTTP con MySQL real y dos propietarios', () => {
     const row = await db.patient.findUniqueOrThrow({ where: { id: own } });
     expect(row.archivedAt).not.toBeNull();
     await api().update(own).send({ fullName: 'Posterior' }).expect(409);
+  });
+
+  const visit = {
+    occurredAt: '2026-01-01T12:00:00Z',
+    reason: 'Evaluación ficticia',
+    anthropometry: {
+      measuredAt: '2026-01-01T11:00:00Z',
+      weightKg: '70',
+      heightCm: '175',
+      waistCm: '80',
+      hipCm: '95',
+    },
+  };
+  const visits = (patientId = own, index = 0) => ({
+    create: () =>
+      request(app.getHttpServer())
+        .post(`/api/v1/patients/${patientId}/consultations`)
+        .set('Authorization', `Bearer ${tokens[index]}`),
+    list: () =>
+      request(app.getHttpServer())
+        .get(`/api/v1/patients/${patientId}/consultations`)
+        .set('Authorization', `Bearer ${tokens[index]}`),
+    detail: (id: string) =>
+      request(app.getHttpServer())
+        .get(`/api/v1/consultations/${id}`)
+        .set('Authorization', `Bearer ${tokens[index]}`),
+  });
+
+  it('crea agregado atómico con IMC; separa consultas del mismo día e historial paginado', async () => {
+    const first = await visits().create().send(visit).expect(201);
+    const second = await visits().create().send(visit).expect(201);
+    expect(first.body.id).not.toBe(second.body.id);
+    expect(first.body.anthropometry).toMatchObject({
+      weightKg: '70.000',
+      heightCm: '175.000',
+      waistCm: '80.000',
+      hipCm: '95.000',
+    });
+    expect(first.body.calculations[0]).toMatchObject({
+      methodCode: 'BMI',
+      methodVersion: '1',
+      value: '22.86',
+      unit: 'kg/m2',
+    });
+    expect(first.body).not.toHaveProperty('nutritionistId');
+    const calculation = await db.calculationResult.findFirstOrThrow({
+      where: { consultationId: first.body.id },
+    });
+    expect(calculation.value.toFixed(6)).toBe('22.857143');
+    expect(calculation.inputs).toEqual({
+      weightKg: '70.000',
+      heightCm: '175.000',
+    });
+    const ids = [first.body.id, second.body.id]
+      .sort((left: string, right: string) => left.localeCompare(right))
+      .reverse();
+    const page = await visits().list().query({ pageSize: '1' }).expect(200);
+    expect(page.body.meta).toEqual({ page: 1, pageSize: 1, total: 2 });
+    expect(page.body.data[0].id).toBe(ids[0]);
+    const next = await visits()
+      .list()
+      .query({ page: '2', pageSize: '1' })
+      .expect(200);
+    expect(next.body.data[0].id).toBe(ids[1]);
+    await visits().detail(first.body.id).expect(200);
+    await api().archive(own).expect(200);
+    await visits().list().expect(200);
+    await visits().detail(first.body.id).expect(200);
+    await visits().create().send(visit).expect(409);
+  });
+
+  it('aísla creación, historial y detalle; ADMIN y perfiles ausentes no acceden', async () => {
+    const created = await visits().create().send(visit).expect(201);
+    for (const id of [foreign, randomUUID()]) {
+      await visits(id).create().send(visit).expect(404);
+      await visits(id).list().expect(404);
+    }
+    await visits(own, 1).detail(created.body.id).expect(404);
+    await visits().detail(randomUUID()).expect(404);
+    for (const index of [2, 3]) {
+      await visits(own, index).create().send(visit).expect(403);
+      await visits(own, index).list().expect(403);
+      await visits(own, index).detail(created.body.id).expect(403);
+    }
+  });
+
+  it('rechaza fechas incoherentes y medidas inválidas sin escrituras', async () => {
+    for (const changed of [
+      { occurredAt: '1989-01-01T12:00:00Z' },
+      { occurredAt: '2999-01-01T12:00:00Z' },
+      {
+        anthropometry: {
+          ...visit.anthropometry,
+          measuredAt: '2026-01-02T12:00:00Z',
+        },
+      },
+      {
+        anthropometry: {
+          ...visit.anthropometry,
+          measuredAt: '1989-01-01T12:00:00Z',
+        },
+      },
+      { anthropometry: { ...visit.anthropometry, heightCm: '0' } },
+      { anthropometry: { ...visit.anthropometry, heightCm: '0.001' } },
+    ])
+      await visits()
+        .create()
+        .send({ ...visit, ...changed })
+        .expect(400);
+    expect(await db.consultation.count({ where: { patientId: own } })).toBe(0);
+  });
+
+  it('serializa creación/archivo y bloquea toda creación posterior al archivo', async () => {
+    const [created, archived] = await Promise.all([
+      visits().create().send(visit),
+      api().archive(own),
+    ]);
+    expect([201, 409]).toContain(created.status);
+    expect(archived.status).toBe(200);
+    await visits().create().send(visit).expect(409);
+    const history = await visits().list().expect(200);
+    expect(history.body.meta.total).toBe(created.status === 201 ? 1 : 0);
+  });
+
+  it('revierte todas las escrituras reales ante un fallo antes del commit', async () => {
+    const prisma = app.get(PrismaService);
+    const originalTransaction = prisma.$transaction.bind(prisma);
+    // Run the real service writes, then fail inside the real MySQL transaction.
+    // No SQL triggers or elevated DB privileges are required.
+    const failingTransaction = (
+      callback: (tx: Prisma.TransactionClient) => Promise<unknown>,
+    ) =>
+      originalTransaction(async (tx) => {
+        await callback(tx);
+        throw new Error('synthetic transaction failure');
+      });
+    const spy = vi
+      .spyOn(prisma, '$transaction')
+      .mockImplementationOnce(
+        failingTransaction as unknown as typeof prisma.$transaction,
+      );
+    try {
+      const response = await visits().create().send(visit).expect(500);
+      expect(JSON.stringify(response.body)).not.toContain(
+        'synthetic transaction failure',
+      );
+      expect(await db.consultation.count({ where: { patientId: own } })).toBe(
+        0,
+      );
+      expect(
+        await db.anthropometricAssessment.count({
+          where: { consultation: { patientId: own } },
+        }),
+      ).toBe(0);
+      expect(
+        await db.calculationResult.count({
+          where: { consultation: { patientId: own } },
+        }),
+      ).toBe(0);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

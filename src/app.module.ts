@@ -6,6 +6,7 @@ import { validateEnvironment } from './config/environment.js';
 import { DatabaseModule } from './database/database.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { PatientsModule } from './modules/patients/patients.module.js';
+import { ConsultationsModule } from './modules/consultations/consultations.module.js';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { PatientsModule } from './modules/patients/patients.module.js';
     DatabaseModule,
     AuthModule,
     PatientsModule,
+    ConsultationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
