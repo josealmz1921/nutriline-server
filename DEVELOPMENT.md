@@ -25,7 +25,8 @@ Es liveness, no una prueba completa de DB ni de funcionalidades de negocio.
 Login, sesiones y seed están descritos en [AUTH.md](AUTH.md).
 Swagger en desarrollo: http://localhost:3001/api/docs.
 Pacientes y aislamiento: [PATIENTS.md](PATIENTS.md).
-Todavía no existen endpoints de consultas ni cálculos clínicos.
+Consultas, mediciones e IMC numérico: [CONSULTATIONS.md](CONSULTATIONS.md).
+No hay clasificación clínica ni fórmulas avanzadas; uso exclusivo de demo.
 
 La imagen incluye herramientas de desarrollo/migración: no es una imagen endurecida
 para producción. Por ahora el código se copia al construir; después de editar:
@@ -50,7 +51,8 @@ Cambiar contraseñas en `.env` no cambia automáticamente las de un volumen ya c
 ## Puertos y aislamiento
 
 - Backend: **127.0.0.1:3001** (configurable por `PORT` en `.env`).
-- Frontend previsto: **localhost:3000**, origen CORS permitido por defecto.
+- Frontend previsto: **localhost:3000**, origen CORS permitido por defecto;
+  todavía no existe una aplicación en ese puerto como parte de este proyecto.
 - MySQL 8.4: **solo red interna**, sin publicar 3306/3307.
 - El PHP antiguo continúa en **localhost:8080**, con sus datos independientes.
 - El MySQL de Ubuntu no se usa ni se modifica.

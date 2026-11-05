@@ -8,7 +8,7 @@ del sistema PHP ni una migración automática de datos reales.
 
 | Entrega | Estado | Documentación |
 | --- | --- | --- |
-| 001 — Base del backend y primer flujo clínico | Base, autenticación y pacientes verificados; consultas pendientes | [Especificación](001-backend-foundation/spec.md) · [Plan](001-backend-foundation/plan.md) · [Tareas](001-backend-foundation/tasks.md) |
+| 001 — Base del backend y primer flujo clínico | Base, auth, pacientes y consultas verificados con MySQL; limitaciones de demo documentadas | [Especificación](001-backend-foundation/spec.md) · [Plan](001-backend-foundation/plan.md) · [Tareas](001-backend-foundation/tasks.md) |
 
 ## Cómo trabajar
 
@@ -26,10 +26,16 @@ No almacenar aquí contraseñas, secretos, dumps SQL, expedientes ni ejemplos de
 
 - Backend: este repositorio, `/home/josealmz/proyects/nutriline-server`.
 - Referencia local de solo lectura: `/home/josealmz/proyects/ProyectoDietas`.
-- Frontend: base Next.js existente; su carpeta y dependencias todavía no se revisaron.
+- Corrección de contexto (2026-11-05): el frontend moderno aún no existe; también
+  se creará/migrará desde las pantallas del PHP. La suposición de una base Next.js
+  existente y dependencia Firebase no está vigente. Next.js es la dirección prevista.
+- Visión general de la migración: [docs/MIGRATION.md](../docs/MIGRATION.md).
+  Arquitectura actual: [docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md).
 - Stack acordado: NestJS + TypeScript, Prisma + MySQL, Cloudinary para imágenes.
 - El legado funciona aparte en Docker; no modificar sus archivos, volúmenes ni datos.
 - Leer primero esta entrega y el estado de `tasks.md`. Node 24.22.2 y Prisma
   7.10.1; guía operativa en `DEVELOPMENT.md`. No confundir tablas creadas con
-  funcionalidades clínicas terminadas; consultas, mediciones y cálculo BMI
-  son el siguiente bloque. Ver `AUTH.md` y `PATIENTS.md` para lo ya disponible.
+   aprobación clínica: consultas, mediciones y BMI tienen pruebas unitarias,
+   HTTP e integraciones MySQL correctas; los rangos e interpretación clínicos
+   permanecen fuera del alcance de la demo.
+   Ver `AUTH.md`, `PATIENTS.md` y `CONSULTATIONS.md`.

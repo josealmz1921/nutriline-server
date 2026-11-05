@@ -2,7 +2,7 @@
 
 **Estado:** esquema inicial en `prisma/schema.prisma`, con migración versionada.
 Autenticación y endpoints de pacientes implementados, con pruebas de rol y propiedad.
-Consultas clínicas pendientes; la estructura de tablas no implementa sus reglas por sí sola.
+Consultas con mediciones y BMI implementadas; integración MySQL verificada.
 No utilizar emails como PK/FK ni fechas como identificadores de una consulta.
 IDs opacos UUID, columnas `snake_case` y nombres de modelo/campos TypeScript
 en inglés son la convención propuesta.
@@ -38,8 +38,9 @@ tiene `createdAt`: su edición no está habilitada en esta entrega.
 - Índices para pacientes por propietario/archivo y consultas por paciente/fecha/ID.
 - No borrar en cascada usuarios/pacientes con historial; archivado/desactivación.
 - Pacientes: edición y archivo usan bloqueo de fila filtrado por propietario;
-  futuros writes de consulta deberán compartirlo. Archivo es idempotente, permite
-  leer detalle/historial y bloquea edición. Carrera archivo/consulta aún pendiente.
+  creación de consulta comparte ese bloqueo. Archivo es idempotente, permite
+  leer detalle/historial y bloquea edición. Prueba MySQL de carrera archivo/consulta
+  y bloqueo de creación posterior al archivo verificados.
 - Primera entrega: consulta inmutable después de crear; corrección/auditoría futura.
 - No guardar `lastConsultation`/`consultationCount` como autoridad: derivarlos
   inicialmente de consultas, para evitar contadores desincronizados.

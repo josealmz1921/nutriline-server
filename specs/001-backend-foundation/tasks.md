@@ -99,37 +99,58 @@ Documentación creada no equivale a aprobación ni implementación del diseño.
   Cierre: límites/orden/filtros probados; IDs ajenos devuelven `404`. AC02, AC03.
   Evidencia: paginación estable, total filtrado con snapshot, búsqueda literal
   por nombre/email/teléfono, filtros estrictos y acceso cruzado 404 comprobados.
-- [ ] **T032** Implementar archivo sin borrar historial ni permitir creación de
+- [x] **T032** Implementar archivo sin borrar historial ni permitir creación de
   consultas posteriores; controlar concurrencia con creación. Cierre: pruebas de
   archivo repetido, listado, acceso ajeno y carrera archivo/consulta. AC08.
   Avance: endpoint de archivo idempotente implementado con bloqueo por propietario;
   conserva historial, detalle y timestamps; excluido del listado activo y PATCH 409.
-  Pruebas de archivos concurrentes y carrera edición/archivo OK. No se cierra T032
-  hasta probar bloqueo de creación de consultas y carrera archivo/consulta en T041.
+  Pruebas de archivos concurrentes y carrera edición/archivo OK.
+  Cierre 2026-11-05: creación usa el bloqueo compartido; pruebas MySQL
+  de carrera archivo/consulta y rechazo de creación posterior al archivo OK.
 
 ## E. Primer flujo clínico — depende de pacientes
 
-- [ ] **T040** Implementar BMI v1 como función de dominio con unidades explícitas.
+- [x] **T040** Implementar BMI v1 como función de dominio con unidades explícitas.
   Cierre: 70 kg/175 cm → 22.86, valores no finitos/cero/negativos rechazados,
   precisión y redondeo probados; sin clasificación clínica no aprobada. AC04, AC07.
-- [ ] **T041** Crear consulta+mediciones+cálculo en transacción y con propietario
+  Evidencia: siete pruebas de dominio verifican precisión decimal, cero/negativos,
+  no finitos y overflow/underflow; HTTP documenta resultado decimal string.
+- [x] **T041** Crear consulta+mediciones+cálculo en transacción y con propietario
   coherente. Cierre: rollback ante fallo, paciente archivado/ajeno bloqueado y cintura
   vs cadera guardadas correctamente con valores distintos. AC03–AC05, AC08.
-- [ ] **T042** Implementar detalle e historial por ID, paginados y ordenados.
+  Implementado agregado anidado en transacción, validación de propietario/archivo
+  y errores temporales. Pruebas MySQL de persistencia/rollback/concurrencia OK
+  el 2026-11-05, con cintura/cadera distintas y entradas BMI auditables.
+- [x] **T042** Implementar detalle e historial por ID, paginados y ordenados.
   Cierre: dos consultas del mismo día no se mezclan y no se filtran datos ajenos.
   AC03, AC06.
+  Endpoints de detalle e historial implementados, snapshot y orden fecha/ID;
+  contrato HTTP y aislamiento con DB real verificados el 2026-11-05.
 - [ ] **T043** Probar coherencia temporal y campos requeridos: nacimiento,
   atención, medición y reloj controlado. Cierre: fechas inválidas/futuras rechazadas
   según regla aprobada, sin reemplazar faltantes por cero. AC07.
+  Validación técnica y reloj controlado probados. Política temporal conservadora
+  de demo documentada en D04; sin validar rangos clínicos ni uso pediátrico.
 
 ## F. Cierre de entrega
 
-- [ ] **T050** Ejecutar AC01–AC10 con MySQL aislado y fixtures ficticios.
+- [x] **T050** Ejecutar AC01–AC10 con MySQL aislado y fixtures ficticios.
   Cierre: evidencia e2e/integración y revisión negativa de autorización por cada ruta.
-- [ ] **T051** Completar README de arranque, migraciones, seed, tests, puertos y
+  Evidencia 2026-11-05: 26 integraciones MySQL sobre migración aplicada a DB vacía,
+  incluidas sesiones/roles, propiedad por ruta, consultas, rollback e historial;
+  97 unitarias y 23 e2e HTTP. No equivale a validación clínica de D04.
+- [x] **T051** Completar README de arranque, migraciones, seed, tests, puertos y
   sesión; actualizar OpenAPI y esta documentación al contrato real.
+  Guías README/DEVELOPMENT/AUTH/PATIENTS/CONSULTATIONS enlazadas y actualizadas;
+  OpenAPI de las tres rutas de consultas probado.
 - [ ] **T052** Ejecutar build/lint/unit/e2e; validar arranque desde DB nueva,
   persistencia y no exposición de secretos. Registrar resultados y riesgos restantes.
+  Actualización 2026-11-05: build/lint/types, 97 unitarias, 23 e2e y 26
+  integraciones correctas; migración desde DB test vacía y API reconstruida/healthy.
+  Smoke HTTP completo y limpieza de sus datos ficticios OK. La persistencia tras
+  reinicio se verificó en la base técnica (registro 2026-11-04); no se repitió
+  el reinicio de la DB de desarrollo en esta verificación. Mantener abierto
+  hasta la revisión final de persistencia y seguridad previa a distribuir la demo.
 
 ## Backlog — futuras specs, no iniciado
 
@@ -140,7 +161,9 @@ Documentación creada no equivale a aprobación ni implementación del diseño.
 - [ ] **B005** Dietas versionadas y generación de PDF a partir de datos estructurados.
 - [ ] **B006** Cloudinary: subida firmada, assets públicos/privados, propiedad y limpieza.
 - [ ] **B007** Suscripciones y correos simulados sin cobros/envíos externos reales.
-- [ ] **B008** Revisar base Next.js y sustituir dependencia Firebase mediante API.
+- [ ] **B008** Crear/migrar el frontend tomando como referencia las pantallas PHP,
+  con Next.js previsto y consumo de la API. No existe una base nueva disponible
+  ni dependencia Firebase confirmada (aclaración del usuario, 2026-11-05).
 - [ ] **B009** Administración de cuentas y posible portal paciente, permisos explícitos.
 
 ## Registro de verificación
@@ -192,3 +215,47 @@ Documentación creada no equivale a aprobación ni implementación del diseño.
   ninguna migración aplicada. DB test detenida al terminar; legado intacto.
   T032 sigue parcial hasta implementar consultas y probar archivo/consulta.
   Guía de contrato disponible en `PATIENTS.md`; sin commits ni push.
+- **Consultas (2026-11-05):** creación de consulta con mediciones y BMI v1 en
+  transacción, historial paginado y detalle por UUID implementados. Creación
+  reutiliza bloqueo de paciente/propietario y rechazo de archivados. Sin cambios
+  al schema, migraciones aplicadas, datos del legado ni dependencias.
+  Node 24.22.2: `npm run build`, `npm run lint` y
+  `npx tsc --noEmit --incremental false` OK; `npm test`: 97 pruebas;
+  `npm run test:e2e`: 23 pruebas HTTP con servicios sustituidos; todas pasan.
+  Agregadas cinco integraciones MySQL al fixture existente de pacientes:
+  agregado/precisión/historial, aislamiento/roles, validación temporal,
+  carrera creación/archivo y rollback con fallo inyectado después de las escrituras
+  reales y antes del commit. **No ejecutadas:** `docker compose ps` no encuentra
+  Docker en esta distro WSL. T032/T041/T042 y el cierre AC01–AC10 siguen abiertos.
+  T043 conserva revisión de política clínica pendiente; reglas conservadoras de
+  demo y límites puramente técnicos en `CONSULTATIONS.md` y D04. OpenAPI actualizado.
+  Siguiente paso: habilitar integración WSL de Docker Desktop, ejecutar
+  `docker compose --profile test run --build --rm test`, detener `db-test` al acabar,
+  corregir cualquier fallo y entonces verificar arranque/smoke del flujo completo.
+- **Cierre de integración y smoke (2026-11-05):** Docker disponible en WSL.
+  `docker compose --profile test run --build --rm test` aplica la migración
+  inicial sobre `nutriline_test` vacía y pasa las 26 integraciones, incluidas
+  las cinco nuevas de consultas. No se necesitaron correcciones de código.
+  `docker compose --profile test stop db-test` deja la DB temporal detenida.
+  Repetidos con Node 24.22.2: lint, tipos y build OK; 97 unitarias y 23 e2e
+  HTTP OK (146 pruebas en total). API reconstruida con
+  `docker compose up -d --build --wait api` y seed ficticio idempotente ejecutado.
+  Smoke HTTP sobre la API en ejecución: login/me de los tres roles demo,
+  paciente nuevo, dos consultas independientes del mismo día, IMC 22.86,
+  cintura/cadera separadas, detalle/historial paginado, acceso ajeno 404,
+  ADMIN 403, archivo con historial intacto y bloqueo 409 de consulta posterior.
+  OpenAPI contiene las tres rutas; logout revoca inmediatamente cada sesión.
+  El smoke elimina únicamente el paciente y las consultas ficticias que creó;
+  no imprime contraseñas/tokens ni modifica el legado. T032/T041/T042/T050/T051
+  cerradas con evidencia. T043 (revisión clínica de política de demo), T052
+  (revisión final antes de distribuir) y T016 (audit de herramientas) siguen abiertas.
+- **Documentación del proyecto (2026-11-05):** README propio en español en lugar
+  del texto genérico de Nest; guías de arquitectura y migración en `docs/`,
+  enlazadas con operación local, contratos y especificaciones. Corregido el
+  supuesto de un frontend Next.js existente: aún no existe y también se migrará.
+  No hay dependencia Firebase confirmada ni creación de proyecto frontend en este
+  cambio. El historial de investigación conserva explícitamente su carácter inicial.
+  Validación documental: 15 documentos revisados, 44 enlaces locales válidos y
+  `git diff --check` sin errores. No se reejecutaron pruebas funcionales por este
+  cambio exclusivamente documental; los resultados de 146 pruebas son los del
+  cierre de integración anterior.

@@ -37,6 +37,16 @@ usa Node 24.22.2 y Prisma 7.10.1 estable (el tag npm `latest` apunta a una RC de
 Como la API corre dentro de Docker, no se publica MySQL en el host.
 Cloudinary y D06 no bloquean el primer flujo.
 
+### D04 implementada para la demo (2026-11-05)
+
+IMC numérico sin clasificación ni rango de edad. Medidas positivas con tres
+decimales como máximo y límite de almacenamiento DECIMAL(8,3), no límites clínicos.
+Nacimiento <= medición <= atención <= reloj UTC actual; se admiten mediciones
+anteriores a la visita. Esta política conservadora requiere revisión clínica
+antes de uso real, igual que rangos plausibles e interpretación pediátrica.
+La API rechaza cálculos fuera de DECIMAL(12,6); no se cambió el esquema.
+Ver `../../CONSULTATIONS.md`. Integraciones MySQL verificadas el 2026-11-05.
+
 ## Estructura propuesta
 
 ```text

@@ -79,7 +79,7 @@ Las rutas de esta sección son relativas a `/home/josealmz/proyects/ProyectoDiet
 - En la primera entrega solo se propone IMC numérico; clasificación y demás métodos
   quedan bloqueados hasta aclarar alcance y referencias.
 
-## Estado del repositorio nuevo
+## Estado del repositorio nuevo en la inspección inicial (histórico)
 
 `package.json`: NestJS 12, TypeScript 6, ESM, npm/package-lock, Vitest y Oxlint.
 `src/` contiene únicamente el starter de controlador/servicio/módulo/bootstrap.
@@ -94,6 +94,8 @@ La base técnica posterior y sus verificaciones se registran en `tasks.md`.
 - Revisar a fondo PDFs, dieta, porciones/nutrientes, laboratorios, antecedentes y
   algoritmos avanzados antes de especificar sus entregas.
 - Confirmar campos mínimos clínicos, unidades, alcance por edad y políticas de acceso.
-- Revisar el frontend Next.js y cómo sustituir Firebase; no se conoce su ruta.
+- Inventariar las pantallas PHP y definir el frontend moderno antes de crearlo.
+  Aclaración del usuario (2026-11-05): no existe aún un frontend nuevo; la base
+  Next.js/Firebase supuesta inicialmente no es un recurso disponible.
 - Verificar Node local, compatibilidad Nest/Prisma y estrategia de Observe en dev/tests.
 - Verificar licencia/procedencia del catálogo nutricional antes de usarlo en una demo pública.

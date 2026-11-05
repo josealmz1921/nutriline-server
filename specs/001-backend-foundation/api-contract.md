@@ -1,7 +1,7 @@
 # Contrato preliminar de API
 
-**Estado:** health, autenticación y pacientes implementados; consultas clínicas
-todavía no implementadas. Base `/api/v1`. OpenAPI de rutas existentes en
+**Estado:** health, autenticación, pacientes y consultas implementados y verificados
+con MySQL aislado. Base `/api/v1`. OpenAPI de rutas existentes en
 `/api/docs` (solo desarrollo); guía operativa en `../../AUTH.md`.
 
 ## Convenciones
@@ -88,7 +88,10 @@ ajenos responden 404. Guía completa: [PATIENTS.md](../../PATIENTS.md).
 `occurredAt`, `reason`, `anthropometry.measuredAt`, peso y talla requeridos;
 notas/cintura/cadera opcionales. El servidor valida coherencia temporal con
 nacimiento y reloj actual; consultas futuras se rechazan (son agenda, no atención).
-Rangos clínicos plausibles y relación entre medición/atención deben cerrarse en D04.
+Para la demo: nacimiento <= medición <= atención <= reloj actual. Se admiten
+segundos enteros o tres decimales, siempre con zona. Medidas positivas como strings
+de hasta tres decimales, máximo técnico 99999.999; no son rangos clínicos validados.
+Motivo 1–500 y notas opcionales/anulables 1–10 000 caracteres, tras trim.
 No aceptar `bmi`, clasificación o propietario calculados/enviados por el navegador.
 
 Respuesta de creación: `id`, `patientId`, `occurredAt`, `reason`, `notes`,
@@ -106,6 +109,7 @@ Ejemplo del elemento calculado para esos valores:
 
 La precisión interna es mayor que la presentación. No devolver interpretación
 clínica hasta validar su regla. Los ejemplos no son fixtures del respaldo antiguo.
+Contrato y limitaciones actuales: [CONSULTATIONS.md](../../CONSULTATIONS.md).
 
 ## Sesiones implementadas
 

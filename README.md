@@ -1,143 +1,159 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Nutriline
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Modernización de un sistema de gestión nutricional para una demo comercial.
+El objetivo es reconstruir los flujos del proyecto PHP con una arquitectura
+moderna, sin trasladar sus fallos ni importar datos personales reales.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+Este repositorio contiene **el backend**. El frontend moderno **todavía no existe**:
+también se migrará tomando como referencia las pantallas del sistema original.
+Next.js es la dirección prevista, no una implementación disponible.
 
-## Plan de modernización de Nutriline
+> Entorno de desarrollo y demostración con datos ficticios. No está aprobado
+> para uso clínico real ni preparado para publicarse en producción.
 
-El backend se construye desde cero; todavía no contiene módulos de negocio.
-Consulta [specs/README.md](specs/README.md) para el alcance, investigación del legado,
-modelo propuesto, contrato API y seguimiento de tareas.
+## Estado actual
 
-La guía vigente de arranque, MySQL/Prisma, Docker y pruebas está en
-[DEVELOPMENT.md](DEVELOPMENT.md). API local: http://localhost:3001/api/v1/health.
-Autenticación, roles y cuentas de demo: [AUTH.md](AUTH.md).
-Pacientes, búsqueda y archivo: [PATIENTS.md](PATIENTS.md).
-Las secciones siguientes conservan información genérica del starter de Nest.
+Última verificación: **2026-11-05**.
 
-## Description
+| Área | Estado |
+| --- | --- |
+| Entorno Docker, MySQL y migraciones Prisma | Implementado y verificado |
+| Login, sesiones, roles, refresh y logout | Implementado y verificado |
+| Pacientes propios: alta, edición, búsqueda, detalle y archivo | Implementado y verificado |
+| Consultas, mediciones, historial e IMC numérico | Implementado y verificado |
+| Frontend moderno | Pendiente de crear/migrar |
+| Agenda, dietas/PDF, recetas, imágenes y otras fórmulas | Backlog, no implementado |
+| Importación de pacientes/cuentas reales | Fuera del alcance actual |
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+El recorrido disponible mediante API es:
 
-## Project setup
+**Login → paciente → consulta con mediciones → IMC → historial → archivo.**
 
-```bash
-$ npm install
+Cada nutriólogo accede únicamente a sus pacientes y consultas. El administrador
+no hereda acceso clínico y los pacientes no tienen cuenta de acceso en esta entrega.
+
+## Tecnologías
+
+| Componente | Tecnología |
+| --- | --- |
+| Runtime | Node.js 24.22.2, ESM |
+| Backend | NestJS 12, TypeScript 6 |
+| Persistencia | Prisma 7.10.1, MySQL 8.4 |
+| Validación y contrato | Zod, OpenAPI/Swagger |
+| Identidad | Argon2id, JWT de acceso y refresh opaco rotativo |
+| Pruebas y calidad | Vitest, Supertest, Oxlint, Prettier |
+| Entorno local | Docker Compose |
+| Frontend / imágenes | Next.js / Cloudinary previstos, aún no implementados |
+
+## Inicio rápido
+
+Requisitos: Docker Desktop activo e integración WSL habilitada. Para ejecutar
+herramientas npm directamente en WSL, usar la versión de Node de `.nvmrc`.
+
+Desde la raíz de este repositorio:
+
+1. Crear `.env` desde `.env.example` **solo si no existe**:
+   ```sh
+   cp -n .env.example .env
+   ```
+2. Editar `.env`: generar `AUTH_ACCESS_SECRET` aleatorio propio de al menos
+   48 caracteres y definir `DEMO_PASSWORD` propio de 12–128 caracteres.
+   No utilizar los placeholders ni publicar estos valores.
+3. Construir, arrancar y aplicar migraciones:
+   ```sh
+   docker compose up -d --build --wait
+   docker compose run --rm api npm run db:migrate:deploy
+   ```
+4. Crear las cuentas y pacientes ficticios de demostración:
+   ```sh
+   docker compose run --rm api npm run db:seed
+   ```
+
+El seed requiere `NODE_ENV=development` y `DEMO_MODE=true`; no importa datos del
+PHP ni cambia contraseñas de usuarios existentes. Cuentas y flujo de sesión:
+[AUTH.md](AUTH.md).
+
+| Recurso local | Dirección |
+| --- | --- |
+| API | http://localhost:3001/api/v1 |
+| Health del proceso | http://localhost:3001/api/v1/health |
+| Swagger (solo desarrollo) | http://localhost:3001/api/docs |
+| OpenAPI JSON (solo desarrollo) | http://localhost:3001/api/docs-json |
+| PHP original, si se inicia por separado | http://localhost:8080 |
+| Futuro frontend, puerto previsto | http://localhost:3000 — todavía no hay aplicación |
+
+MySQL no publica puertos al host. Los datos del backend persisten en su propio
+volumen, separado del legado. **No ejecutar `docker compose down -v`.**
+Operación diaria, configuración y diagnóstico: [DEVELOPMENT.md](DEVELOPMENT.md).
+
+## API disponible
+
+Base `/api/v1`. Las rutas clínicas requieren un nutriólogo autenticado con perfil.
+
+| Módulo | Rutas | Guía |
+| --- | --- | --- |
+| Salud | `GET /health` | [Desarrollo](DEVELOPMENT.md) |
+| Sesiones | `POST /auth/login`, `/auth/refresh`, `/auth/logout`; `GET /auth/me` | [Autenticación](AUTH.md) |
+| Pacientes | `POST/GET /patients`; `GET/PATCH /patients/:patientId`; `POST /patients/:patientId/archive` | [Pacientes](PATIENTS.md) |
+| Consultas | `POST/GET /patients/:patientId/consultations`; `GET /consultations/:consultationId` | [Consultas e IMC](CONSULTATIONS.md) |
+
+Los DTOs rechazan campos desconocidos; el propietario se obtiene de la sesión.
+Los POST de autenticación exigen `Origin` permitido incluso desde Postman/curl.
+Una consulta no es una cita de agenda. El IMC se calcula en servidor sin
+clasificación clínica; `70 kg / 175 cm` se presenta como `22.86`.
+
+## Pruebas
+
+En WSL, con `.env` preparado:
+
+```sh
+nvm use
+npm ci
+npm run db:generate
+npm run lint
+npx tsc --noEmit --incremental false
+npm run build
+npm test
+npm run test:e2e
 ```
 
-## Compile and run the project
+Integraciones contra MySQL exclusivo de pruebas, con migraciones automáticas:
 
-```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+```sh
+docker compose --profile test run --build --rm test
+docker compose --profile test stop db-test
 ```
 
-## Run tests
+Última ejecución: **146 pruebas correctas** —97 unitarias, 23 e2e HTTP con
+servicios sustituidos y 26 integraciones MySQL—. También pasó el smoke HTTP
+del flujo completo sobre la API en Docker. No equivalen a cobertura total ni
+a validación médica. Evidencias y pendientes: [tareas](specs/001-backend-foundation/tasks.md).
 
-```bash
-# unit tests
-$ npm run test
+## Documentación
 
-# e2e tests
-$ npm run test:e2e
+| Documento | Contenido |
+| --- | --- |
+| [Desarrollo local](DEVELOPMENT.md) | Docker, variables, MySQL, migraciones y pruebas |
+| [Arquitectura](docs/ARCHITECTURE.md) | Módulos, modelo, seguridad y decisiones técnicas |
+| [Migración y estado](docs/MIGRATION.md) | Relación con PHP, alcance y próximos bloques, incluido frontend |
+| [Autenticación](AUTH.md) | Cuentas ficticias, roles y contrato de sesión |
+| [Pacientes](PATIENTS.md) | DTOs, filtros, propiedad, archivo y concurrencia |
+| [Consultas](CONSULTATIONS.md) | Mediciones, tiempos, precisión e IMC |
+| [Especificaciones](specs/README.md) | Requisitos, investigación, decisiones y seguimiento detallado |
 
-# test coverage
-$ npm run test:cov
-```
+## Límites y precauciones
 
-## Deployment
+- Solo datos ficticios. No versionar `.env`, dumps ni expedientes.
+- Observe está instalado, pero **no se importa ni inicializa**; activarlo está bloqueado.
+- Faltan revisión clínica de reglas/rangos, revisión de dependencias e infraestructura
+  de producción. Los avisos de auditoría registrados no se consideran resueltos.
+- Sin alta pública, recuperación de contraseña, administración de cuentas,
+  portal paciente, cobros ni correos reales en la entrega actual.
+- Cloudinary, agenda, dietas/PDF y frontend requieren sus propias implementaciones.
+- El código PHP y su base se mantienen independientes y no se modifican al probar el backend.
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+## Licencia
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Observability
-
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
-
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
-
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
-
-**Nutriline mantiene Observe desactivado:** el SDK no se importa ni inicializa.
-No habilitarlo ni vincular credenciales hasta revisar la privacidad de datos clínicos.
-El contenido siguiente describe la integración opcional del starter, no el estado
-actual de la aplicación. Véase [DEVELOPMENT.md](DEVELOPMENT.md).
-
-Para una futura integración aprobada, el proveedor documenta el enlace mediante:
-
-```bash
-$ npx @nestjs/observe link
-```
-
-It writes the app key and secret into `.env` and makes every `nest start` script (`start`, `start:dev`, `start:debug`) load it. In production, set `OBSERVE_APP_KEY` and `OBSERVE_APP_SECRET` in the environment instead.
-
-Or do it by hand: create an application and an API key at [observe.nestjs.com](https://observe.nestjs.com), and set the pair as `OBSERVE_APP_KEY` and `OBSERVE_APP_SECRET` in the environment the app runs in.
-
-The free plan needs no payment details and covers 300,000 events a month. You can also browse the [live demo](https://www.observe-demo.nestjs.com/dashboard) first - the whole dashboard over a busy service's data, with nothing to install.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observe](https://observe.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+Repositorio privado, declarado `UNLICENSED` en `package.json`. No se concede aquí
+una licencia de redistribución del proyecto. Revisar por separado las licencias
+de dependencias y la procedencia del catálogo nutricional del legado.

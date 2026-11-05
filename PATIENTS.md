@@ -72,8 +72,9 @@ se puede consultar pero no editar (409); el listado activo lo excluye.
 Edición y archivo toman bloqueo de fila dentro de una transacción MySQL, filtrada
 por propietario. Esto serializa escrituras concurrentes sin autorizar por un ID
 global. `PatientOwnershipService` ofrece el mismo bloqueo y chequeo de archivo
-para el próximo módulo de consultas. **Aún no existe un endpoint para crearlas**;
-la carrera archivo/creación de consulta sigue pendiente de implementar/probar allí.
+para el módulo de consultas, que ya lo utiliza al crear el agregado clínico.
+La prueba MySQL de la carrera archivo/consulta pasó, junto con el bloqueo de
+creación posterior al archivo. Contrato: [CONSULTATIONS.md](CONSULTATIONS.md).
 
 ## Pruebas
 

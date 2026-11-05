@@ -42,10 +42,13 @@ cuerpo vacío o `{}`: no enviar tokens en JSON ni en query strings.
 Los POST de auth **exigen `Origin`**, también desde curl/Postman. CORS no basta
 para proteger cookies: el guard de origen rechaza ausencias y valores no autorizados.
 En el navegador, `Origin` se envía automáticamente; no intentes asignarlo desde JS.
-`.env.example` permite Next local (`3000`) y Swagger local (`3001`). Si cambias el
+`.env.example` permite el futuro frontend local (`3000`) y Swagger local (`3001`). Si cambias el
 puerto, ajusta los orígenes explícitos; nunca uses `*` con credenciales.
 
-## Flujo de sesión para Next.js
+## Contrato de sesión para el futuro frontend
+
+El frontend moderno todavía no existe. Este flujo describe cómo deberá consumir
+la API; no implica que haya un cliente Next.js ya implementado.
 
 1. Login con `credentials: 'include'` y JSON `{ email, password }`.
 2. Guardar `accessToken` **en memoria**. Respuesta:
@@ -77,13 +80,14 @@ cookies/CSRF antes de cambiar SameSite; no está habilitado por conveniencia.
 ## Permisos
 
 - `ADMIN`: identidad y futuras funciones administrativas/catálogos.
-- `NUTRITIONIST`: identidad y rutas de sus pacientes; consultas/dietas pendientes.
+- `NUTRITIONIST`: identidad, pacientes y consultas propias; dietas pendientes.
 - No existe rol de paciente en esta versión.
 - Roles no implican jerarquía: ADMIN no hereda permisos clínicos.
 - Rutas protegidas exigen roles explícitos (`@Roles`); sin política se deniega.
 - El rol actual viene de DB, no del cuerpo de login ni de un claim obsoleto.
 - Los endpoints de pacientes ya filtran por propietario: ver [PATIENTS.md](PATIENTS.md).
-  No existe todavía CRUD administrativo ni endpoints de consultas clínicas.
+  Consultas clínicas disponibles: [CONSULTATIONS.md](CONSULTATIONS.md).
+  No existe todavía CRUD administrativo.
 
 ## Límites y errores
 

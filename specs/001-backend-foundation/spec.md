@@ -4,14 +4,17 @@
 
 Especificación creada el 2026-11-04. Base técnica, autenticación para ADMIN y
 NUTRITIONIST, seed sintético y gestión de pacientes implementados. Consultas
-clínicas pendientes; no está completo el recorrido de la entrega.
+clínicas con mediciones e IMC implementadas y verificadas con MySQL aislado.
+El flujo es exclusivamente de demo; no implica aprobación clínica ni preparación
+para producción. Pendientes y evidencias en `tasks.md`.
 Las decisiones y detalles pendientes se registran en [plan.md](plan.md), y las
 verificaciones efectivamente ejecutadas en [tasks.md](tasks.md).
 
 ## Objetivo y decisiones confirmadas
 
 Modernizar Nutriline para demostrar capacidades y conseguir clientes.
-El frontend reutilizará una base Next.js; el backend se construye desde cero
+El frontend moderno aún no existe y también se creará/migrará desde el PHP,
+con Next.js como dirección prevista; el backend se construye desde cero
 en NestJS con TypeScript, MySQL y Prisma. Cloudinary gestionará imágenes.
 Mantener intacto el legado, usar datos ficticios y simular pagos/correos inicialmente.
 
@@ -64,7 +67,8 @@ entrega permite consultas sin cita previa; el calendario vendrá después.
 
 ## Fuera de esta entrega
 
-- Frontend Next.js, integración Firebase y login público de pacientes.
+- Creación/migración del frontend Next.js y login público de pacientes.
+  La suposición inicial de una base con Firebase no está vigente.
 - Calendario, notificaciones y recuperación por correo.
 - Dietas, recetas, PDF, laboratorios, somatotipo y fórmulas avanzadas.
 - Cloudinary operativo, cobros reales, portal de autoservicio y multiclínica.
