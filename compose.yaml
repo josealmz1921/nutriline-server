@@ -1,0 +1,111 @@
+name: nutriline-server
+
+services:
+  api:
+    build: .
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3001
+    ports:
+      - '127.0.0.1:${PORT:-3001}:3001'
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3001/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    networks:
+      - frontend
+      - database
+
+  db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:?Define MYSQL_DATABASE en .env}
+      MYSQL_USER: ${MYSQL_USER:?Define MYSQL_USER en .env}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Define MYSQL_PASSWORD en .env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Define MYSQL_ROOT_PASSWORD en .env}
+    command:
+      [
+        '--character-set-server=utf8mb4',
+        '--collation-server=utf8mb4_0900_ai_ci',
+        '--default-time-zone=+00:00',
+      ]
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'MYSQL_PWD="$$MYSQL_PASSWORD" mysql -h 127.0.0.1 -u"$$MYSQL_USER" "$$MYSQL_DATABASE" -e ''SELECT 1'' >/dev/null 2>&1',
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+      start_period: 30s
+    networks:
+      - database
+
+  db-test:
+    image: mysql:8.4
+    profiles: ['test']
+    environment:
+      MYSQL_DATABASE: nutriline_test
+      MYSQL_USER: nutriline_test
+      MYSQL_PASSWORD: isolated_test_password
+      MYSQL_ROOT_PASSWORD: isolated_test_root_password
+    command:
+      [
+        '--character-set-server=utf8mb4',
+        '--collation-server=utf8mb4_0900_ai_ci',
+        '--default-time-zone=+00:00',
+      ]
+    tmpfs:
+      - /var/lib/mysql
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'MYSQL_PWD="$$MYSQL_PASSWORD" mysql -h 127.0.0.1 -u"$$MYSQL_USER" "$$MYSQL_DATABASE" -e ''SELECT 1'' >/dev/null 2>&1',
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+      start_period: 30s
+    networks:
+      - database
+
+  test:
+    build: .
+    profiles: ['test']
+    environment:
+      NODE_ENV: test
+      OBSERVE_ENABLED: 'false'
+      AUTH_ACCESS_SECRET: integration-test-secret-not-for-production-0123456789abcdef
+      DEMO_MODE: 'false'
+      DATABASE_URL: mysql://nutriline_test:isolated_test_password@db-test:3306/nutriline_test
+    command:
+      ['sh', '-c', 'npm run db:migrate:deploy && npm run test:integration']
+    depends_on:
+      db-test:
+        condition: service_healthy
+    networks:
+      - database
+
+volumes:
+  mysql_data:
+
+networks:
+  frontend:
+  database:
+    internal: true
