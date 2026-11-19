@@ -49,7 +49,7 @@ export class HttpErrorFilter implements ExceptionFilter {
       error: {
         code: `HTTP_${status}`,
         message,
-      ...(status === 400 && Array.isArray(detail?.fields)
+        ...(status === 400 && Array.isArray(detail?.fields)
           ? { details: { fields: detail.fields } }
           : {}),
         requestId,

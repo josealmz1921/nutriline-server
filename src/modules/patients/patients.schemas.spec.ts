@@ -70,6 +70,55 @@ describe('validación de pacientes', () => {
       updatePatientSchema.safeParse({ nutritionistId: 'other' }).success,
     ).toBe(false);
   });
+  it('conserva identidad opcional y códigos históricos sin inferencias', () => {
+    expect(
+      createPatientSchema.parse({
+        ...valid,
+        gender: 'Mujer',
+        nationality: 'MX',
+      }),
+    ).toMatchObject({ gender: 'Mujer', nationality: 'MX' });
+    for (const nationality of ['AN', 'UK', 'TP', 'YU']) {
+      expect(
+        createPatientSchema.parse({ ...valid, nationality }).nationality,
+      ).toBe(nationality);
+    }
+    expect(
+      updatePatientSchema.parse({ gender: null, nationality: null }),
+    ).toEqual({ gender: null, nationality: null });
+    for (const extra of [
+      { gender: '' },
+      { gender: 'Otro' },
+      { nationality: 'ZZ' },
+      { nationality: 'mx' },
+      { photo: 'file' },
+      { symptoms: [] },
+      { reason: 'Consulta' },
+    ]) {
+      expect(
+        createPatientSchema.safeParse({ ...valid, ...extra }).success,
+      ).toBe(false);
+    }
+  });
+  it('la versión es opcional en PATCH pero no sustituye un campo editable', () => {
+    const expectedUpdatedAt = '2026-11-13T08:00:00.000Z';
+    expect(
+      updatePatientSchema.parse({ phone: null, expectedUpdatedAt })
+        .expectedUpdatedAt,
+    ).toBe(expectedUpdatedAt);
+    expect(updatePatientSchema.safeParse({ expectedUpdatedAt }).success).toBe(
+      false,
+    );
+    expect(
+      updatePatientSchema.safeParse({
+        phone: null,
+        expectedUpdatedAt: 'invalid',
+      }).success,
+    ).toBe(false);
+    expect(
+      createPatientSchema.safeParse({ ...valid, expectedUpdatedAt }).success,
+    ).toBe(false);
+  });
   it('paginación acotada y archived explícito sin coerción booleana ambigua', () => {
     expect(listPatientsSchema.parse({})).toEqual({
       page: 1,

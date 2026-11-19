@@ -1,0 +1,13 @@
+# Acceso opcional para ejecutar Nest/Prisma con npm fuera de Docker.
+# No expone MySQL a la red local ni cambia su volumen persistente.
+services:
+  db:
+    ports:
+      - '127.0.0.1:3307:3306'
+    networks:
+      - database
+      - local_database
+
+# Una red exclusivamente internal no habilita publicación hacia el host.
+networks:
+  local_database:

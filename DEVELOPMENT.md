@@ -26,6 +26,8 @@ Login, sesiones y seed están descritos en [AUTH.md](AUTH.md).
 Swagger en desarrollo: http://localhost:3001/api/docs.
 Pacientes y aislamiento: [PATIENTS.md](PATIENTS.md).
 Consultas, mediciones e IMC numérico: [CONSULTATIONS.md](CONSULTATIONS.md).
+Menús independientes, revisiones, migración y activación: [MENUS.md](MENUS.md).
+Agenda, citas y conflictos de horarios: [APPOINTMENTS.md](APPOINTMENTS.md).
 No hay clasificación clínica ni fórmulas avanzadas; uso exclusivo de demo.
 
 La imagen incluye herramientas de desarrollo/migración: no es una imagen endurecida
@@ -36,6 +38,39 @@ docker compose up -d --build --wait
 ```
 
 ## Operación diaria
+
+### Backend con npm y MySQL en Docker
+
+Para trabajar en el backend sin construir su imagen:
+
+```sh
+nvm use
+# Solo la primera vez; crea .env.local privado sin sobrescribirlo.
+npm run setup:local
+docker compose -f compose.yaml -f compose.local.yaml up -d --wait db
+npm run start:dev
+```
+
+Mantener ese último comando en una terminal abierta. En otra terminal, dentro
+de `nutriline-client`, ejecutar `npm run dev` y abrir http://localhost:5173.
+No ejecutar simultáneamente la API de Docker y la de npm en el puerto 3001.
+
+`.env` conserva `db:3306` para la API de Docker; `.env.local` conserva las mismas
+credenciales y solo cambia el destino a `127.0.0.1:3307` para Nest/Prisma locales.
+Este archivo está ignorado por Git y excluido de la imagen Docker. Las variables
+exportadas en la terminal tienen prioridad sobre ambos archivos.
+
+El archivo Compose adicional publica MySQL **solo en loopback**, no en la red.
+Se utiliza 3307 para no interferir con el MySQL de Ubuntu en 3306. Recrear el
+contenedor para publicar el puerto conserva el volumen `nutriline-server_mysql_data`.
+No ejecutar `down -v`, no borrar volúmenes ni repetir el seed para este cambio.
+Las siguientes veces basta con los dos últimos comandos de backend.
+
+`CORS_ORIGINS` en `.env` debe incluir `http://localhost:5173`; reiniciar Nest
+si se cambia la configuración. Las cuentas ficticias existentes mantienen sus
+contraseñas. El login correcto, no solo `/health`, comprueba el acceso a la DB.
+
+### Todo el backend en Docker
 
 ```sh
 docker compose up -d --wait
@@ -51,15 +86,15 @@ Cambiar contraseñas en `.env` no cambia automáticamente las de un volumen ya c
 ## Puertos y aislamiento
 
 - Backend: **127.0.0.1:3001** (configurable por `PORT` en `.env`).
-- Frontend previsto: **localhost:3000**, origen CORS permitido por defecto;
-  todavía no existe una aplicación en ese puerto como parte de este proyecto.
-- MySQL 8.4: **solo red interna**, sin publicar 3306/3307.
+- Frontend React/Vite: **localhost:5173**, en el repositorio `nutriline-client`.
+- MySQL 8.4: **solo red interna** por defecto; acceso opcional por
+  **127.0.0.1:3307** con `compose.local.yaml`.
 - El PHP antiguo continúa en **localhost:8080**, con sus datos independientes.
 - El MySQL de Ubuntu no se usa ni se modifica.
 
 `DATABASE_URL` usa el host `db` porque Nest y Prisma se ejecutan dentro de Compose.
-`npm run start:dev` directamente en WSL no resolverá ese host: antes de usar ese
-modo se necesita una configuración de acceso a DB distinta. No apuntarlo al legado.
+`npm run start:dev` usa `.env.local` cuando existe, siguiendo el procedimiento
+anterior. No apuntarlo al legado.
 
 Para entrar al MySQL nuevo (contraseña `MYSQL_PASSWORD` de tu `.env`):
 

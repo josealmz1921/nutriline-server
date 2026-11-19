@@ -25,6 +25,8 @@ import {
   consultationParamsSchema,
   createConsultationSchema,
   listConsultationsSchema,
+  consultationDirectorySchema,
+  type ConsultationDirectoryQuery,
   type CreateConsultation,
   type ListConsultations,
 } from './consultations.schemas.js';
@@ -32,6 +34,7 @@ import {
   consultationBody,
   consultationResponse,
   consultationsPageResponse,
+  consultationDirectoryResponse,
 } from './consultations.openapi.js';
 
 @ApiTags('consultations')
@@ -79,6 +82,55 @@ export class ConsultationsController {
     query: ListConsultations,
   ) {
     return this.consultations.list(user, params.patientId, query);
+  }
+
+  @Get('consultations')
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    schema: { type: 'integer', minimum: 1, maximum: 1000000, default: 1 },
+  })
+  @ApiQuery({
+    name: 'pageSize',
+    required: false,
+    schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    schema: { type: 'string', minLength: 1, maxLength: 150 },
+    description:
+      'Texto literal en nombre actual, motivo o IDs de paciente/consulta',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: ['all', 'active', 'archived'],
+  })
+  @ApiQuery({
+    name: 'order',
+    required: false,
+    enum: ['recent', 'oldest', 'patient'],
+  })
+  @ApiQuery({
+    name: 'fromDate',
+    required: false,
+    schema: { type: 'string', format: 'date' },
+    description: 'Día inclusivo en America/Mexico_City',
+  })
+  @ApiQuery({
+    name: 'toDate',
+    required: false,
+    schema: { type: 'string', format: 'date' },
+    description: 'Día inclusivo en America/Mexico_City',
+  })
+  @ApiOkResponse({ schema: consultationDirectoryResponse })
+  directory(
+    @CurrentUser() user: PublicUser,
+    @Query(new ZodValidationPipe(consultationDirectorySchema))
+    query: ConsultationDirectoryQuery,
+  ) {
+    return this.consultations.directory(user, query);
   }
 
   @Get('consultations/:consultationId')

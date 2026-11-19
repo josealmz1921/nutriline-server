@@ -22,7 +22,13 @@ export const publicUserSchema: SchemaObject = {
 };
 export const sessionSchema: SchemaObject = {
   type: 'object',
-  required: ['accessToken', 'tokenType', 'expiresIn', 'user'],
+  required: [
+    'accessToken',
+    'tokenType',
+    'expiresIn',
+    'sessionExpiresAt',
+    'user',
+  ],
   properties: {
     accessToken: { type: 'string' },
     tokenType: { type: 'string', enum: ['Bearer'] },
@@ -31,5 +37,11 @@ export const sessionSchema: SchemaObject = {
       description: 'Segundos de vigencia del access token',
     },
     user: publicUserSchema,
+    sessionExpiresAt: {
+      type: 'string',
+      format: 'date-time',
+      description:
+        'Vencimiento absoluto UTC, máximo 24 h desde el login; no se extiende al renovar.',
+    },
   },
 };

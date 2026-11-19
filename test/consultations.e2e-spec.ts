@@ -32,7 +32,12 @@ const user = {
 };
 describe('consultas HTTP, guards y validación reales', () => {
   let app: INestApplication;
-  const service = { create: vi.fn(), list: vi.fn(), detail: vi.fn() };
+  const service = {
+    create: vi.fn(),
+    list: vi.fn(),
+    detail: vi.fn(),
+    directory: vi.fn(),
+  };
   const authenticate = vi.fn();
   const auth = { Authorization: 'Bearer synthetic-access-token' };
   beforeEach(async () => {
@@ -78,7 +83,7 @@ describe('consultas HTTP, guards y validación reales', () => {
       .expect(200);
     expect(service.detail).toHaveBeenCalledWith(user, consultationId);
   });
-  it('exige sesión y deniega ADMIN en las tres rutas', async () => {
+  it('exige sesión y deniega ADMIN también en el directorio global', async () => {
     for (const token of [false, true]) {
       authenticate.mockResolvedValue({
         user: { ...user, role: 'ADMIN' },
@@ -86,6 +91,10 @@ describe('consultas HTTP, guards y validación reales', () => {
       });
       const headers = token ? auth : {};
       const status = token ? 403 : 401;
+      await request(app.getHttpServer())
+        .get('/api/v1/consultations')
+        .set(headers)
+        .expect(status);
       await request(app.getHttpServer())
         .post(`/api/v1/patients/${patientId}/consultations`)
         .set(headers)
@@ -103,6 +112,7 @@ describe('consultas HTTP, guards y validación reales', () => {
     expect(service.create).not.toHaveBeenCalled();
     expect(service.list).not.toHaveBeenCalled();
     expect(service.detail).not.toHaveBeenCalled();
+    expect(service.directory).not.toHaveBeenCalled();
   });
   it('rechaza campos calculados, UUID inválido y queries ambiguas', async () => {
     await request(app.getHttpServer())
@@ -122,7 +132,48 @@ describe('consultas HTTP, guards y validación reales', () => {
     expect(service.create).not.toHaveBeenCalled();
     expect(service.list).not.toHaveBeenCalled();
   });
-  it('documenta tres rutas, medidas decimales y resultado BMI string', () => {
+  it('valida y normaliza el directorio global sin aceptar propietario ni queries ambiguas', async () => {
+    service.directory.mockResolvedValue({
+      data: [],
+      meta: { page: 2, pageSize: 5, total: 0 },
+      summary: { patients: 0, archivedConsultations: 0 },
+    });
+    await request(app.getHttpServer())
+      .get(
+        '/api/v1/consultations?page=2&pageSize=5&search=%20Demo%20&status=archived&order=patient&fromDate=2026-01-01&toDate=2026-12-31',
+      )
+      .set(auth)
+      .expect(200);
+    expect(service.directory).toHaveBeenCalledWith(user, {
+      page: 2,
+      pageSize: 5,
+      search: 'Demo',
+      status: 'archived',
+      order: 'patient',
+      fromDate: '2026-01-01',
+      toDate: '2026-12-31',
+    });
+    service.directory.mockClear();
+    for (const query of [
+      'page=1&page=2',
+      'search[]=x',
+      'pageSize=101',
+      'owner=x',
+      'nutritionistId=x',
+      'status=cancelled',
+      'order=unknown',
+      'fromDate=2026-02-30',
+      'fromDate=2026-02-02&toDate=2026-02-01',
+      'search=',
+      `search=${'a'.repeat(151)}`,
+    ])
+      await request(app.getHttpServer())
+        .get(`/api/v1/consultations?${query}`)
+        .set(auth)
+        .expect(400);
+    expect(service.directory).not.toHaveBeenCalled();
+  });
+  it('documenta el directorio, medidas decimales y resultado BMI string', () => {
     const doc = SwaggerModule.createDocument(
       app,
       new DocumentBuilder().addBearerAuth().build(),
@@ -141,5 +192,6 @@ describe('consultas HTTP, guards y validación reales', () => {
       ],
     ).toBeDefined();
     expect(JSON.stringify(doc.paths)).toContain('22.86');
+    expect(doc.paths['/api/v1/consultations']?.get?.parameters).toHaveLength(7);
   });
 });

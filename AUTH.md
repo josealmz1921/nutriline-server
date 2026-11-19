@@ -34,6 +34,9 @@ OpenAPI/Swagger en desarrollo: http://localhost:3001/api/docs y `/api/docs-json`
 | POST | `/auth/refresh` | Cookie de refresh y Origin permitido; 200 |
 | POST | `/auth/logout` | Cookie si existe y Origin permitido; 204 idempotente |
 | GET | `/auth/me` | Bearer access token válido; 200 |
+| POST | `/auth/password/forgot` | Público + Origin; `{ email }`; 200 genérico |
+| POST | `/auth/password/reset` | Público + Origin; `{ token, newPassword }`; 204 |
+| POST | `/auth/password/change` | ADMIN/NUTRITIONIST + Origin; `{ currentPassword, newPassword }`; 204 |
 
 Login recibe únicamente `email` y `password`. Email se normaliza; la contraseña
 no se recorta ni transforma. Se rechazan campos extra. Refresh/logout reciben
@@ -45,14 +48,13 @@ En el navegador, `Origin` se envía automáticamente; no intentes asignarlo desd
 `.env.example` permite el futuro frontend local (`3000`) y Swagger local (`3001`). Si cambias el
 puerto, ajusta los orígenes explícitos; nunca uses `*` con credenciales.
 
-## Contrato de sesión para el futuro frontend
+## Contrato de sesión del frontend React
 
-El frontend moderno todavía no existe. Este flujo describe cómo deberá consumir
-la API; no implica que haya un cliente Next.js ya implementado.
+El cliente React/Vite consume este contrato; no utiliza Next.js.
 
 1. Login con `credentials: 'include'` y JSON `{ email, password }`.
 2. Guardar `accessToken` **en memoria**. Respuesta:
-   `{ accessToken, tokenType: 'Bearer', expiresIn, user }`.
+   `{ accessToken, tokenType: 'Bearer', expiresIn, sessionExpiresAt, user }`.
 3. En peticiones protegidas enviar `Authorization: Bearer <accessToken>`.
 4. Al recargar la página o vencer el access, llamar a refresh con credenciales
    incluidas; sustituir el access en memoria. La cookie no es legible desde JS.
@@ -61,7 +63,25 @@ la API; no implica que haya un cliente Next.js ya implementado.
 Cookie `nutriline_refresh`: HttpOnly, SameSite=Lax, path `/api/v1/auth`, sin Domain,
 Secure en producción. JWT HS256 con issuer/audience y claims mínimos `sub`/`sid`;
 por defecto dura 5 minutos. Refresh aleatorio de 256 bits; DB guarda solo SHA-256.
-El límite absoluto por familia es 7 días por defecto, sin extenderlo al renovar.
+El límite absoluto por familia es **24 horas desde el login**, sin extenderlo al
+renovar. `sessionExpiresAt` es su instante UTC, no el vencimiento del access token.
+`AUTH_REFRESH_TTL_DAYS=1` es el valor recomendado; configuraciones antiguas entre
+1 y 30 días se limitan siempre a 1 para no impedir el arranque ni permitir más
+de 24 horas. El servidor también consulta el primer `createdAt` de la familia:
+las sesiones existentes de siete días quedan sujetas al mismo límite, incluso
+si fueron rotadas recientemente. No requiere migración ni borrar sesiones/datos.
+
+El frontend programa la salida al vencer y revalida al recuperar foco/visibilidad;
+limpia memoria y caché por cuenta y abre `/login`. Si falta la sesión o falla la
+restauración, también abre el login con un aviso. Antes de peticiones comprueba
+el límite local; el servidor sigue siendo la autoridad aun con reloj manipulado.
+Los cambios se comunican entre pestañas sin transmitir tokens. No se repiten
+guardados automáticamente al renovar o recuperar sesión.
+
+Verificación: pruebas de cliente con reloj controlado (vencimiento sin petición,
+pestaña suspendida, renovación sin extensión, bloqueo de escritura) y MySQL
+aislado (login de 24 h, renovación y rechazo de familias antiguas vencidas).
+Reiniciar el proceso backend después de actualizar el código.
 
 **Revocación inmediata:** cada petición protegida consulta estado/rol y sesión en
 DB. Logout con cookie válida revoca esa familia, no las sesiones de otros dispositivos.
@@ -107,4 +127,53 @@ hashes ni excepciones crudas de DB en el filtro HTTP.
 Generar secreto criptográfico propio (mínimo 48 caracteres), usar HTTPS y orígenes
 exactos, desactivar demo, revisar dependencia/infraestructura, límites distribuidos,
 gestión/rotación de claves y monitoreo sanitizado. Swagger solo se monta en desarrollo.
-Este bloque no implementa registro público, recuperación ni cambio de contraseña.
+No existe registro público. Recuperación y cambio se describen a continuación.
+
+## Cambio y recuperación de contraseña
+
+- Nueva contraseña: 12–128 caracteres (mínimo 12 tras ignorar espacios extremos
+  solo para validar longitud); se conserva exactamente, sin recortarla. Debe ser
+  diferente de la actual. El cambio autenticado verifica la contraseña actual.
+- Ambos flujos actualizan contraseña, revocan todas las sesiones y consumen todos
+  los enlaces pendientes en una transacción. Nunca inician sesión automáticamente.
+  Login/refresh y cambios usan bloqueo por usuario para impedir sesiones creadas
+  con credenciales verificadas antes de un cambio concurrente.
+- Recuperación responde igual para cuentas activas, inactivas e inexistentes.
+  Límite público: 3 solicitudes/minuto/IP; máximo un enlace por cuenta/minuto.
+  Reset/cambio: 5 solicitudes/minuto/IP por ruta. No hay reintentos automáticos
+  de cambios de contraseña ante respuestas inciertas.
+- Tokens aleatorios de 256 bits, SHA-256 para búsqueda, vencimiento de 15 minutos
+  desde la solicitud y un solo uso. La URL usa fragmento `#token=…`, no query;
+  el cliente lo elimina de la dirección al abrir y no modifica nada hasta enviar
+  el formulario. Recargar después requiere abrir otra vez el correo.
+- La cola SMTP persiste temporalmente el token cifrado con AES-256-GCM y una clave
+  derivada con separación de dominio de `AUTH_ACCESS_SECRET`. No se guarda en
+  claro ni se devuelve por HTTP. Se elimina el payload al entregar, consumir,
+  agotar tres intentos o limpiar vencidos. El worker revisa cada 5 segundos y
+  separa intentos fallidos al menos 30 segundos. SMTP no garantiza entrega única:
+  una caída tras aceptar un correo podría duplicarlo, nunca duplicar su consumo.
+  Rotar el secreto invalida payloads pendientes; solicitar enlaces nuevos.
+- `MAIL_MODE=disabled` devuelve 503 explícito para cualquier dirección. No hay
+  fallback de correo ni registro de enlaces/destinatarios/cuerpos.
+
+### Buzón local (sin correo real)
+
+```sh
+docker compose -f compose.yaml -f compose.mail.yaml up -d mailpit
+```
+
+En el archivo privado `.env.local`, configurar `MAIL_MODE=smtp`,
+`SMTP_HOST=127.0.0.1`, `SMTP_PORT=1025`, `SMTP_SECURE=false`,
+`MAIL_FROM=no-reply@nutriline.example`,
+`PASSWORD_RESET_ORIGIN=http://localhost:5173` y autorizar ese origen en
+`CORS_ORIGINS`. Reiniciar API. Buzón: http://localhost:8025 (puertos loopback).
+Si API corre dentro de Docker, conectar ambos servicios a la misma red y usar
+`SMTP_HOST=mailpit`; `127.0.0.1` corresponde al arranque API con npm.
+Aplicar migración aditiva `20261119110000_password_resets` con el procedimiento
+de [DEVELOPMENT.md](DEVELOPMENT.md); nunca reseedear ni borrar volúmenes.
+
+En producción falta seleccionar/configurar proveedor SMTP real: HTTPS para el
+origen de recuperación, credenciales privadas y TLS SMTP son obligatorios.
+El origen debe estar permitido; nunca se acepta URL de retorno del solicitante.
+Mantener observabilidad sin secretos y configurar límites compartidos antes de
+escalar a varias instancias. El buzón local no es transporte de producción.

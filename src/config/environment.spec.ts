@@ -7,6 +7,43 @@ const valid = {
 };
 
 describe('validateEnvironment', () => {
+  it('deshabilita correo por defecto y protege configuración SMTP de producción', () => {
+    expect(validateEnvironment(valid).MAIL_MODE).toBe('disabled');
+    expect(() => validateEnvironment({ ...valid, MAIL_MODE: 'smtp' })).toThrow(
+      'PASSWORD_RESET_ORIGIN',
+    );
+    expect(() =>
+      validateEnvironment({ ...valid, SMTP_USER: 'incomplete' }),
+    ).toThrow('SMTP_USER');
+    expect(() =>
+      validateEnvironment({
+        ...valid,
+        NODE_ENV: 'production',
+        CORS_ORIGINS: 'https://app.example.invalid',
+        PASSWORD_RESET_ORIGIN: 'https://app.example.invalid',
+        MAIL_MODE: 'smtp',
+      }),
+    ).toThrow('MAIL_MODE');
+    expect(
+      validateEnvironment({
+        ...valid,
+        NODE_ENV: 'production',
+        CORS_ORIGINS: 'https://app.example.invalid',
+        PASSWORD_RESET_ORIGIN: 'https://app.example.invalid',
+        MAIL_MODE: 'smtp',
+        SMTP_USER: 'sender',
+        SMTP_PASSWORD: 'synthetic-smtp-password',
+      }).MAIL_MODE,
+    ).toBe('smtp');
+  });
+  it('limita a un día incluso configuraciones antiguas de siete o treinta días', () => {
+    for (const days of ['1', '7', '30'])
+      expect(
+        validateEnvironment({ ...valid, AUTH_REFRESH_TTL_DAYS: days })
+          .AUTH_REFRESH_TTL_DAYS,
+      ).toBe(1);
+    expect(validateEnvironment(valid).AUTH_REFRESH_TTL_DAYS).toBe(1);
+  });
   it('normaliza configuración y valores por defecto', () => {
     expect(validateEnvironment(valid)).toMatchObject({
       PORT: 3001,

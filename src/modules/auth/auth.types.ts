@@ -22,6 +22,7 @@ export type SessionGrant = {
     accessToken: string;
     tokenType: 'Bearer';
     expiresIn: number;
+    sessionExpiresAt: string;
     user: PublicUser;
   };
 };

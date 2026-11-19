@@ -1,4 +1,9 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service.js';
 import type { Prisma } from '../../generated/prisma/client.js';
 import type { PublicUser } from '../auth/auth.types.js';
@@ -7,6 +12,7 @@ import type {
   CreatePatient,
   ListPatients,
   UpdatePatient,
+  ReactivatePatient,
 } from './patients.schemas.js';
 
 export const patientSelect = {
@@ -16,6 +22,8 @@ export const patientSelect = {
   email: true,
   phone: true,
   occupation: true,
+  gender: true,
+  nationality: true,
   archivedAt: true,
   createdAt: true,
   updatedAt: true,
@@ -96,6 +104,7 @@ export class PatientsService {
 
   async update(user: PublicUser, patientId: string, input: UpdatePatient) {
     const nutritionistId = this.ownership.nutritionistId(user);
+    const { expectedUpdatedAt, ...changes } = input;
     return this.db.$transaction(async (tx) => {
       await this.ownership.lockOwned(tx, patientId, nutritionistId);
       const where = { id_nutritionistId: { id: patientId, nutritionistId } };
@@ -104,13 +113,25 @@ export class PatientsService {
         select: patientSelect,
       });
       this.ownership.requireEditable(row);
+      if (
+        expectedUpdatedAt &&
+        row.updatedAt.getTime() !== new Date(expectedUpdatedAt).getTime()
+      ) {
+        throw new ConflictException(
+          'El paciente cambió desde que abriste el formulario. Revisa el expediente actual antes de volver a editar.',
+        );
+      }
       return present(
         await tx.patient.update({
           where,
           data: {
-            ...input,
-            ...(input.birthDate
-              ? { birthDate: new Date(`${input.birthDate}T00:00:00.000Z`) }
+            ...changes,
+            // Garantiza una versión nueva incluso en dos escrituras en el mismo ms.
+            updatedAt: new Date(
+              Math.max(Date.now(), row.updatedAt.getTime() + 1),
+            ),
+            ...(changes.birthDate
+              ? { birthDate: new Date(`${changes.birthDate}T00:00:00.000Z`) }
               : {}),
           },
           select: patientSelect,
@@ -129,10 +150,47 @@ export class PatientsService {
         select: patientSelect,
       });
       if (row.archivedAt) return present(row);
+      const now = new Date(Math.max(Date.now(), row.updatedAt.getTime() + 1));
       return present(
         await tx.patient.update({
           where,
-          data: { archivedAt: new Date() },
+          data: { archivedAt: now, updatedAt: now },
+          select: patientSelect,
+        }),
+      );
+    });
+  }
+
+  async reactivate(
+    user: PublicUser,
+    patientId: string,
+    input: ReactivatePatient,
+  ) {
+    const nutritionistId = this.ownership.nutritionistId(user);
+    return this.db.$transaction(async (tx) => {
+      await this.ownership.lockOwned(tx, patientId, nutritionistId);
+      const where = { id_nutritionistId: { id: patientId, nutritionistId } };
+      const row = await tx.patient.findUniqueOrThrow({
+        where,
+        select: patientSelect,
+      });
+      // A retry on an already active record is read-only, even after an edit.
+      if (!row.archivedAt) return present(row);
+      if (
+        row.updatedAt.getTime() !== new Date(input.expectedUpdatedAt).getTime()
+      )
+        throw new ConflictException(
+          'La ficha cambió desde la revisión. Actualiza el expediente antes de confirmar otra reactivación.',
+        );
+      return present(
+        await tx.patient.update({
+          where,
+          data: {
+            archivedAt: null,
+            updatedAt: new Date(
+              Math.max(Date.now(), row.updatedAt.getTime() + 1),
+            ),
+          },
           select: patientSelect,
         }),
       );

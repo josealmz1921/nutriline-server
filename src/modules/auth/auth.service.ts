@@ -45,13 +45,28 @@ export class AuthService {
       Date.now() +
         this.config.get('AUTH_REFRESH_TTL_DAYS', { infer: true }) * 86400000,
     );
-    const session = await this.db.authSession.create({
-      data: {
-        userId: row.id,
-        refreshTokenHash: tokenHash(refreshToken),
-        familyId: randomUUID(),
-        expiresAt: refreshExpiresAt,
-      },
+    const session = await this.db.$transaction(async (tx) => {
+      // Recheck credentials under the same user-first lock used by password
+      // changes. A login verified before a reset cannot create a session after it.
+      await tx.$queryRaw`SELECT id FROM users WHERE id = ${row.id} FOR UPDATE`;
+      const current = await tx.user.findUnique({
+        where: { id: row.id },
+        select: { passwordHash: true, status: true },
+      });
+      if (
+        !current ||
+        current.status !== 'ACTIVE' ||
+        current.passwordHash !== row.passwordHash
+      )
+        throw new UnauthorizedException('Credenciales inválidas');
+      return tx.authSession.create({
+        data: {
+          userId: row.id,
+          refreshTokenHash: tokenHash(refreshToken),
+          familyId: randomUUID(),
+          expiresAt: refreshExpiresAt,
+        },
+      });
     });
     const { passwordHash: _passwordHash, ...user } = row;
     return this.grant(user, session.id, refreshToken, refreshExpiresAt);
@@ -74,11 +89,25 @@ export class AuthService {
       where: { id: claims.sid },
       include: { user: { select: publicUserSelect } },
     });
+    const familyStart = session
+      ? await this.db.authSession.aggregate({
+          where: { familyId: session.familyId },
+          _min: { createdAt: true },
+        })
+      : null;
+    const absoluteExpiry =
+      session && familyStart?._min.createdAt
+        ? Math.min(
+            session.expiresAt.getTime(),
+            familyStart._min.createdAt.getTime() + 86400000,
+          )
+        : 0;
     if (
       !session ||
       session.userId !== claims.sub ||
       session.revokedAt ||
       session.expiresAt <= new Date() ||
+      absoluteExpiry <= Date.now() ||
       session.user.status !== 'ACTIVE'
     ) {
       throw new UnauthorizedException('Sesión inválida');
@@ -90,7 +119,13 @@ export class AuthService {
     if (!parsed.success) throw new UnauthorizedException('Sesión inválida');
     const hash = tokenHash(parsed.data);
     const nextToken = randomBytes(32).toString('base64url');
+    const owner = await this.db.authSession.findUnique({
+      where: { refreshTokenHash: hash },
+      select: { userId: true },
+    });
+    if (!owner) throw new UnauthorizedException('Sesión inválida');
     const result = await this.db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM users WHERE id = ${owner.userId} FOR UPDATE`;
       // Serializar rotaciones concurrentes del mismo token en MySQL.
       await tx.$queryRaw`SELECT id FROM auth_sessions WHERE refresh_token_hash = ${hash} FOR UPDATE`;
       const now = new Date();
@@ -99,9 +134,20 @@ export class AuthService {
         include: { user: { select: publicUserSelect } },
       });
       if (!session) return null;
+      const familyStart = await tx.authSession.aggregate({
+        where: { familyId: session.familyId },
+        _min: { createdAt: true },
+      });
+      const absoluteExpiry = new Date(
+        Math.min(
+          session.expiresAt.getTime(),
+          (familyStart._min.createdAt?.getTime() ?? 0) + 86400000,
+        ),
+      );
       if (
         session.revokedAt ||
         session.expiresAt <= now ||
+        absoluteExpiry <= now ||
         session.user.status !== 'ACTIVE'
       ) {
         await tx.authSession.updateMany({
@@ -120,7 +166,7 @@ export class AuthService {
           userId: session.userId,
           familyId: session.familyId,
           refreshTokenHash: tokenHash(nextToken),
-          expiresAt: session.expiresAt,
+          expiresAt: absoluteExpiry,
         },
       });
       return {
@@ -172,7 +218,13 @@ export class AuthService {
     return {
       refreshToken,
       refreshExpiresAt,
-      body: { accessToken, tokenType: 'Bearer', expiresIn, user },
+      body: {
+        accessToken,
+        tokenType: 'Bearer',
+        expiresIn,
+        sessionExpiresAt: refreshExpiresAt.toISOString(),
+        user,
+      },
     };
   }
 }

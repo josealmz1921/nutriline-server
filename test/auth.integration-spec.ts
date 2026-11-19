@@ -104,10 +104,63 @@ describe('auth con MySQL real', () => {
       .set('Origin', origin)
       .set('Cookie', value);
 
+  it('login fija 24 horas y renovar conserva el mismo vencimiento absoluto', async () => {
+    const start = Date.now();
+    const first = await login().expect(200);
+    const end = Date.parse(first.body.sessionExpiresAt);
+    expect(end).toBeGreaterThanOrEqual(start + 86400000);
+    expect(end).toBeLessThanOrEqual(Date.now() + 86400000);
+    const rotated = await refresh(cookie(first)).expect(200);
+    expect(rotated.body.sessionExpiresAt).toBe(first.body.sessionExpiresAt);
+  });
+
+  it('sesiones antiguas de siete días vencen a las 24 h del inicio de su familia, incluso rotadas', async () => {
+    const first = await login().expect(200);
+    const raw = cookie(first).split('=')[1];
+    const root = await db.authSession.findUniqueOrThrow({
+      where: {
+        refreshTokenHash: createHash('sha256').update(raw).digest('hex'),
+      },
+    });
+    await db.authSession.update({
+      where: { id: root.id },
+      data: {
+        expiresAt: new Date(Date.now() + 7 * 86400000),
+        createdAt: new Date(Date.now() - 23 * 3600000),
+      },
+    });
+    const rotated = await refresh(cookie(first)).expect(200);
+    expect(Date.parse(rotated.body.sessionExpiresAt)).toBeLessThan(
+      Date.now() + 2 * 3600000,
+    );
+    // Simula una familia anterior al despliegue: token reciente y expiración antigua de siete días.
+    await db.authSession.updateMany({
+      where: { familyId: root.familyId },
+      data: { expiresAt: new Date(Date.now() + 7 * 86400000) },
+    });
+    await db.authSession.update({
+      where: { id: root.id },
+      data: { createdAt: new Date(Date.now() - 86400001) },
+    });
+    await me(rotated.body.accessToken).expect(401);
+    await refresh(cookie(rotated)).expect(401);
+    expect(
+      await db.authSession.count({
+        where: { familyId: root.familyId, revokedAt: null },
+      }),
+    ).toBe(0);
+  });
+
   it('impide emails duplicados incluso con distinta capitalización', async () => {
-    await expect(db.user.create({ data: {
-      email: users[0].email.toUpperCase(), role: 'ADMIN', passwordHash: 'synthetic-not-a-real-hash',
-    } })).rejects.toMatchObject({ code: 'P2002' });
+    await expect(
+      db.user.create({
+        data: {
+          email: users[0].email.toUpperCase(),
+          role: 'ADMIN',
+          passwordHash: 'synthetic-not-a-real-hash',
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'P2002' });
   });
 
   it('inicia sesión con ambos roles y nunca devuelve hashes ni refresh en JSON', async () => {
@@ -208,9 +261,21 @@ describe('auth con MySQL real', () => {
       { sid: decoded.sid },
       { ...options, audience: 'another-app', expiresIn: 300 },
     );
-    const missingExpiration = await jwt.signAsync({ sid: decoded.sid }, options);
-    const wrongAlgorithm = await jwt.signAsync({ sid: decoded.sid }, { ...options, algorithm: 'HS512', expiresIn: 300 });
-    for (const token of [expired, wrongSecret, wrongAudience, missingExpiration, wrongAlgorithm])
+    const missingExpiration = await jwt.signAsync(
+      { sid: decoded.sid },
+      options,
+    );
+    const wrongAlgorithm = await jwt.signAsync(
+      { sid: decoded.sid },
+      { ...options, algorithm: 'HS512', expiresIn: 300 },
+    );
+    for (const token of [
+      expired,
+      wrongSecret,
+      wrongAudience,
+      missingExpiration,
+      wrongAlgorithm,
+    ])
       await me(token).expect(401);
   });
   it('rechaza refresh expirado y no prolonga el límite absoluto al rotar', async () => {

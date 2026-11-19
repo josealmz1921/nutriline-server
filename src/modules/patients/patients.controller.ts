@@ -28,6 +28,8 @@ import {
   listPatientsSchema,
   patientParamsSchema,
   emptyBodySchema,
+  reactivatePatientSchema,
+  type ReactivatePatient,
   type CreatePatient,
   type UpdatePatient,
   type ListPatients,
@@ -110,6 +112,34 @@ export class PatientsController {
     @Body(new ZodValidationPipe(updatePatientSchema)) body: UpdatePatient,
   ) {
     return this.patients.update(user, params.patientId, body);
+  }
+
+  @Post(':patientId/reactivate')
+  @HttpCode(200)
+  @ApiParam({ name: 'patientId', format: 'uuid' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['expectedUpdatedAt'],
+      properties: {
+        expectedUpdatedAt: { type: 'string', format: 'date-time' },
+      },
+    },
+  })
+  @ApiOkResponse({
+    schema: patientResponse,
+    description:
+      'Reactivación idempotente; conserva historial y citas. Versión obsoleta de un paciente archivado: 409.',
+  })
+  reactivate(
+    @CurrentUser() user: PublicUser,
+    @Param(new ZodValidationPipe(patientParamsSchema))
+    params: { patientId: string },
+    @Body(new ZodValidationPipe(reactivatePatientSchema))
+    body: ReactivatePatient,
+  ) {
+    return this.patients.reactivate(user, params.patientId, body);
   }
 
   @Post(':patientId/archive')

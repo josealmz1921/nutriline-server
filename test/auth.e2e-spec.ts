@@ -47,6 +47,7 @@ const grant = {
     accessToken: 'example-access-token',
     tokenType: 'Bearer',
     expiresIn: 300,
+    sessionExpiresAt: new Date(Date.now() + 86400000).toISOString(),
     user: admin,
   },
 };
@@ -94,9 +95,26 @@ describe('auth HTTP (servicio sustituido, guards reales)', () => {
   };
 
   it('documenta el contrato de auth sin credenciales ni campos internos', () => {
-    const doc = SwaggerModule.createDocument(app, new DocumentBuilder().addBearerAuth().build());
-    expect(doc.paths['/api/v1/auth/login']?.post?.responses?.['200']).toMatchObject({
-      content: { 'application/json': { schema: { required: ['accessToken', 'tokenType', 'expiresIn', 'user'] } } },
+    const doc = SwaggerModule.createDocument(
+      app,
+      new DocumentBuilder().addBearerAuth().build(),
+    );
+    expect(
+      doc.paths['/api/v1/auth/login']?.post?.responses?.['200'],
+    ).toMatchObject({
+      content: {
+        'application/json': {
+          schema: {
+            required: [
+              'accessToken',
+              'tokenType',
+              'expiresIn',
+              'sessionExpiresAt',
+              'user',
+            ],
+          },
+        },
+      },
     });
     expect(JSON.stringify(doc)).not.toContain('passwordHash');
     expect(JSON.stringify(doc)).not.toContain(grant.refreshToken);

@@ -29,6 +29,7 @@ describe('pacientes HTTP (servicio sustituido, validación y guards reales)', ()
     detail: vi.fn(),
     update: vi.fn(),
     archive: vi.fn(),
+    reactivate: vi.fn(),
   };
   beforeEach(async () => {
     vi.resetAllMocks();
@@ -123,8 +124,40 @@ describe('pacientes HTTP (servicio sustituido, validación y guards reales)', ()
     await request(app.getHttpServer())
       .post(`/api/v1/patients/${patientId}/archive`)
       .expect(401);
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientId}/reactivate`)
+      .send({ expectedUpdatedAt: '2026-11-19T13:00:00Z' })
+      .expect(401);
   });
-  it('documenta las cinco rutas, paginación y fecha de nacimiento date-only', () => {
+  it('valida reactivación con versión y transmite la identidad autenticada', async () => {
+    const input = { expectedUpdatedAt: '2026-11-19T13:00:00.000Z' };
+    patients.reactivate.mockResolvedValue({ id: patientId, archivedAt: null });
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientId}/reactivate`)
+      .set(auth)
+      .send(input)
+      .expect(200);
+    expect(patients.reactivate).toHaveBeenCalledWith(user, patientId, input);
+    patients.reactivate.mockClear();
+    for (const body of [
+      {},
+      { ...input, nutritionistId: 'other' },
+      { ...input, archivedAt: null },
+      { expectedUpdatedAt: 'ayer' },
+    ])
+      await request(app.getHttpServer())
+        .post(`/api/v1/patients/${patientId}/reactivate`)
+        .set(auth)
+        .send(body)
+        .expect(400);
+    await request(app.getHttpServer())
+      .post('/api/v1/patients/not-a-uuid/reactivate')
+      .set(auth)
+      .send(input)
+      .expect(400);
+    expect(patients.reactivate).not.toHaveBeenCalled();
+  });
+  it('documenta las seis rutas, paginación y fecha de nacimiento date-only', () => {
     const doc = SwaggerModule.createDocument(
       app,
       new DocumentBuilder().addBearerAuth().build(),
@@ -143,6 +176,11 @@ describe('pacientes HTTP (servicio sustituido, validación y guards reales)', ()
     expect(doc.paths['/api/v1/patients/{patientId}']?.patch).toBeDefined();
     expect(
       doc.paths['/api/v1/patients/{patientId}/archive']?.post?.responses?.[
+        '200'
+      ],
+    ).toBeDefined();
+    expect(
+      doc.paths['/api/v1/patients/{patientId}/reactivate']?.post?.responses?.[
         '200'
       ],
     ).toBeDefined();

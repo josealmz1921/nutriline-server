@@ -1,4 +1,5 @@
 import type { SchemaObject } from '@nestjs/swagger';
+import { patientNationalities } from './patient-nationalities.js';
 
 const fields: Record<string, SchemaObject> = {
   fullName: { type: 'string', minLength: 1, maxLength: 150 },
@@ -11,6 +12,14 @@ const fields: Record<string, SchemaObject> = {
   email: { type: 'string', format: 'email', maxLength: 254, nullable: true },
   phone: { type: 'string', minLength: 1, maxLength: 32, nullable: true },
   occupation: { type: 'string', minLength: 1, maxLength: 150, nullable: true },
+  gender: { type: 'string', enum: ['Hombre', 'Mujer'], nullable: true },
+  nationality: {
+    type: 'string',
+    enum: [...patientNationalities],
+    nullable: true,
+    description:
+      'Código del catálogo original, incluidos códigos históricos; no se infiere.',
+  },
 };
 export const createPatientBody: SchemaObject = {
   type: 'object',
@@ -22,7 +31,15 @@ export const updatePatientBody: SchemaObject = {
   type: 'object',
   additionalProperties: false,
   minProperties: 1,
-  properties: fields,
+  properties: {
+    ...fields,
+    expectedUpdatedAt: {
+      type: 'string',
+      format: 'date-time',
+      description:
+        'Versión leída del expediente; devuelve 409 si otro proceso la modificó. No cuenta como campo editable.',
+    },
+  },
 };
 export const patientResponse: SchemaObject = {
   type: 'object',
