@@ -12,6 +12,8 @@ import { AppointmentsModule } from './modules/appointments/appointments.module.j
 import { DashboardModule } from './modules/dashboard/dashboard.module.js';
 import { FoodsModule } from './modules/foods/foods.module.js';
 import { ActivitiesModule } from './modules/activities/activities.module.js';
+import { SupportModule } from './modules/support/support.module.js';
+import { AdminModule } from './modules/admin/admin.module.js';
 
 @Module({
   imports: [
@@ -31,6 +33,8 @@ import { ActivitiesModule } from './modules/activities/activities.module.js';
     DashboardModule,
     FoodsModule,
     ActivitiesModule,
+    SupportModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService],

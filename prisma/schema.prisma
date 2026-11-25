@@ -28,8 +28,27 @@ model User {
   nutritionistProfile  NutritionistProfile?
   sessions            AuthSession[]
   passwordResets      PasswordReset[]
+  supportMessages     SupportMessage[]
+  supportEvents       SupportEvent[]
+  assignedTickets     SupportTicket[] @relation("AssignedSupport")
+  adminActions        AdminAccountEvent[] @relation("AdminActor")
+  accountEvents       AdminAccountEvent[] @relation("AdminTarget")
 
   @@map("users")
+}
+
+model AdminAccountEvent {
+  id String @id @default(uuid()) @db.Char(36)
+  actorId String @map("actor_id") @db.Char(36)
+  userId String @map("user_id") @db.Char(36)
+  action String @db.VarChar(32)
+  reason String @db.VarChar(1000)
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  actor User @relation("AdminActor", fields: [actorId], references: [id], onDelete: Restrict)
+  user User @relation("AdminTarget", fields: [userId], references: [id], onDelete: Restrict)
+  @@index([userId, createdAt, id])
+  @@index([createdAt, id])
+  @@map("admin_account_events")
 }
 
 model NutritionistProfile {
@@ -44,8 +63,136 @@ model NutritionistProfile {
   consultations Consultation[]
   menus         DailyMenu[]
   appointments  Appointment[]
+  supportTickets SupportTicket[]
+  billingPayments BillingPayment[]
+  subscription BillingSubscription?
 
   @@map("nutritionist_profiles")
+}
+
+enum SupportStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_REPLY
+  RESOLVED
+  CLOSED
+}
+
+enum SupportCategory {
+  ERROR
+  QUESTION
+  PAYMENT
+}
+
+enum SupportPriority {
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum BillingProvider {
+  ADYEN
+  MERCADO_PAGO
+}
+
+enum BillingPaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+  PARTIALLY_REFUNDED
+  REFUNDED
+}
+
+enum BillingSubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  EXPIRED
+}
+
+model BillingSubscription {
+  id String @id @default(uuid()) @db.Char(36)
+  nutritionistId String @unique @map("nutritionist_id") @db.Char(36)
+  planCode String @map("plan_code") @db.VarChar(100)
+  status BillingSubscriptionStatus
+  startsAt DateTime @map("starts_at") @db.DateTime(3)
+  endsAt DateTime? @map("ends_at") @db.DateTime(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+  nutritionist NutritionistProfile @relation(fields: [nutritionistId], references: [id], onDelete: Restrict)
+  @@index([status, endsAt])
+  @@map("billing_subscriptions")
+}
+
+model BillingPayment {
+  id String @id @default(uuid()) @db.Char(36)
+  nutritionistId String @map("nutritionist_id") @db.Char(36)
+  provider BillingProvider
+  externalId String @map("external_id") @db.VarChar(191)
+  amountMinor Int @map("amount_minor") @db.UnsignedInt
+  currency String @db.Char(3)
+  status BillingPaymentStatus
+  paidAt DateTime? @map("paid_at") @db.DateTime(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+  nutritionist NutritionistProfile @relation(fields: [nutritionistId], references: [id], onDelete: Restrict)
+  tickets SupportTicket[]
+  @@unique([provider, externalId])
+  @@index([nutritionistId, createdAt, id])
+  @@index([status, createdAt])
+  @@map("billing_payments")
+}
+
+model SupportTicket {
+  id String @id @default(uuid()) @db.Char(36)
+  nutritionistId String @map("nutritionist_id") @db.Char(36)
+  clientRequestId String @map("client_request_id") @db.Char(36)
+  requestHash String @map("request_hash") @db.Char(64)
+  subject String @db.VarChar(150)
+  category SupportCategory
+  status SupportStatus @default(OPEN)
+  priority SupportPriority @default(NORMAL)
+  assignedToId String? @map("assigned_to_id") @db.Char(36)
+  paymentId String? @map("payment_id") @db.Char(36)
+  version Int @default(1)
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+  nutritionist NutritionistProfile @relation(fields: [nutritionistId], references: [id], onDelete: Restrict)
+  assignedTo User? @relation("AssignedSupport", fields: [assignedToId], references: [id], onDelete: Restrict)
+  payment BillingPayment? @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  messages SupportMessage[]
+  events SupportEvent[]
+  @@unique([nutritionistId, clientRequestId])
+  @@index([nutritionistId, status, createdAt])
+  @@index([status, updatedAt, id])
+  @@map("support_tickets")
+}
+
+model SupportMessage {
+  id String @id @default(uuid()) @db.Char(36)
+  ticketId String @map("ticket_id") @db.Char(36)
+  authorId String @map("author_id") @db.Char(36)
+  clientRequestId String @map("client_request_id") @db.Char(36)
+  body String @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  author User @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  @@unique([ticketId, clientRequestId])
+  @@index([ticketId, createdAt, id])
+  @@map("support_messages")
+}
+
+model SupportEvent {
+  id String @id @default(uuid()) @db.Char(36)
+  ticketId String @map("ticket_id") @db.Char(36)
+  actorId String @map("actor_id") @db.Char(36)
+  action String @db.VarChar(32)
+  details Json
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  actor User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  @@index([ticketId, createdAt, id])
+  @@map("support_events")
 }
 
 model AuthSession {
