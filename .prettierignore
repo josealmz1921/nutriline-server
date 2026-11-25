@@ -4,3 +4,4 @@ coverage
 src/generated
 package-lock.json
 src/modules/foods/legacy-foods.data.ts
+src/modules/activities/legacy-activities.data.ts
