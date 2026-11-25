@@ -94,6 +94,68 @@ describe('menús persistidos, MySQL real', () => {
     await db.$disconnect();
   });
   const auth = (i = 0) => ({ Authorization: `Bearer ${tokens[i]}` });
+  it('persiste ingredientes v3 y conserva su instantánea al editar cantidades', async () => {
+    const legacy = menuFixture(patient.updatedAt.toISOString());
+    const input = {
+      ...legacy,
+      schemaVersion: 3,
+      menu: {
+        ...legacy.menu,
+        meals: {
+          custom: {
+            ...legacy.menu.meals.breakfast,
+            label: 'Mi tiempo',
+            preparations: [
+              {
+                ...legacy.menu.meals.breakfast.preparations[0],
+                ingredients: [
+                  {
+                    catalogId: '1231',
+                    catalogVersion: 'legacy-foods-2176-v1',
+                    name: 'Manzana',
+                    quantity: '0,5',
+                    unit: 'pieza',
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
+    };
+    const saved = await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patient.id}/menus`)
+      .set(auth())
+      .send(input)
+      .expect(201);
+    expect(saved.body.schemaVersion).toBe(3);
+    expect(saved.body.menu).toEqual(input.menu);
+    const edited = {
+      ...structuredClone(input),
+      clientRequestId: randomUUID(),
+      expectedRevision: 1,
+    };
+    edited.menu.meals.custom.preparations[0].ingredients[0].quantity = '2';
+    await request(app.getHttpServer())
+      .patch(`/api/v1/menus/${saved.body.id}`)
+      .set(auth())
+      .send(edited)
+      .expect(200);
+    const historical = await request(app.getHttpServer())
+      .get(`/api/v1/menus/${saved.body.id}/revisions/1`)
+      .set(auth())
+      .expect(200);
+    expect(
+      historical.body.menu.meals.custom.preparations[0].ingredients[0].quantity,
+    ).toBe('0,5');
+    const current = await request(app.getHttpServer())
+      .get(`/api/v1/menus/${saved.body.id}`)
+      .set(auth())
+      .expect(200);
+    expect(
+      current.body.menu.meals.custom.preparations[0].ingredients[0].quantity,
+    ).toBe('2');
+  });
   const create = (
     input = menuFixture(patient.updatedAt.toISOString()),
     index = 0,
@@ -159,6 +221,48 @@ describe('menús persistidos, MySQL real', () => {
     expect(
       await db.dailyMenuRevision.count({ where: { menuId: res.body.id } }),
     ).toBe(2);
+  });
+  it('guarda tiempos libres como v2 y conserva intacta la revisión histórica v1', async () => {
+    const original = await create().expect(201);
+    const legacy = menuFixture(patient.updatedAt.toISOString());
+    const input = {
+      ...legacy,
+      schemaVersion: 2,
+      expectedRevision: 1,
+      menu: {
+        ...legacy.menu,
+        meals: {
+          training: {
+            ...legacy.menu.meals.breakfast,
+            label: 'Después de entrenar',
+          },
+        },
+      },
+    };
+    const updated = await request(app.getHttpServer())
+      .patch(`/api/v1/menus/${original.body.id}`)
+      .set(auth())
+      .send(input)
+      .expect(200);
+    expect(updated.body.schemaVersion).toBe(2);
+    expect(updated.body.menu).toEqual(input.menu);
+    const reread = await request(app.getHttpServer())
+      .get(`/api/v1/menus/${original.body.id}`)
+      .set(auth())
+      .expect(200);
+    expect(reread.body.menu.meals.training.label).toBe('Después de entrenar');
+    const historical = await request(app.getHttpServer())
+      .get(`/api/v1/menus/${original.body.id}/revisions/1`)
+      .set(auth())
+      .expect(200);
+    expect(historical.body.schemaVersion).toBe(1);
+    expect(historical.body.menu).toEqual(original.body.menu);
+    const replay = await request(app.getHttpServer())
+      .patch(`/api/v1/menus/${original.body.id}`)
+      .set(auth())
+      .send(input)
+      .expect(200);
+    expect(replay.body.revision).toBe(2);
   });
   it('reintentos concurrentes y tras archivo devuelven la misma revisión sin duplicar', async () => {
     const input = menuFixture(patient.updatedAt.toISOString());

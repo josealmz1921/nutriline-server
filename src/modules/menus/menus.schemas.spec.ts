@@ -1,6 +1,110 @@
 import { createMenuSchema, editMenuSchema } from './menus.schemas.js';
 import { menuFixture } from '../../../test/menu-fixture.js';
 describe('contrato estricto de menús independientes', () => {
+  it('v3 conserva ingredientes y referencias originales; v2 no acepta datos que no puede representar', () => {
+    const legacy = menuFixture();
+    const ingredient = {
+      catalogId: '1231',
+      catalogVersion: 'legacy-foods-2176-v1',
+      name: 'Manzana',
+      quantity: '0,5',
+      unit: 'pieza',
+    };
+    const input = {
+      ...legacy,
+      schemaVersion: 3,
+      menu: {
+        ...legacy.menu,
+        meals: {
+          custom: {
+            ...legacy.menu.meals.breakfast,
+            label: 'Mi tiempo',
+            preparations: [
+              {
+                ...legacy.menu.meals.breakfast.preparations[0],
+                ingredients: [ingredient],
+              },
+            ],
+          },
+        },
+      },
+    };
+    expect(createMenuSchema.parse(input)).toEqual(input);
+    expect(
+      createMenuSchema.safeParse({ ...input, schemaVersion: 2 }).success,
+    ).toBe(false);
+    for (const change of [
+      { quantity: '0' },
+      { quantity: '1/2' },
+      { catalogId: '999999' },
+      { name: 'Nombre ajeno al catálogo' },
+      { catalogVersion: 'otro' },
+      { unit: '' },
+    ]) {
+      const modified = structuredClone(input);
+      Object.assign(
+        modified.menu.meals.custom.preparations[0].ingredients[0],
+        change,
+      );
+      expect(createMenuSchema.safeParse(modified).success).toBe(false);
+    }
+  });
+  const dynamicInput = () => {
+    const legacy = menuFixture();
+    return {
+      ...legacy,
+      schemaVersion: 2 as const,
+      menu: {
+        ...legacy.menu,
+        meals: {
+          training: {
+            ...legacy.menu.meals.breakfast,
+            label: 'Después de entrenar',
+          },
+        },
+      },
+    };
+  };
+  it('admite nombres libres en v2, mantiene v1 y permite migrar con una nueva revisión', () => {
+    const input = dynamicInput();
+    expect(createMenuSchema.parse(input)).toEqual(input);
+    expect(createMenuSchema.parse(menuFixture()).schemaVersion).toBe(1);
+    expect(
+      editMenuSchema.parse({ ...input, expectedRevision: 1 }).schemaVersion,
+    ).toBe(2);
+  });
+  it('rechaza tiempos vacíos, nombres ausentes, identificadores peligrosos y campos visuales', () => {
+    const input = dynamicInput();
+    for (const meals of [
+      {},
+      { training: { ...input.menu.meals.training, label: '' } },
+      { training: { ...input.menu.meals.training, label: ' '.repeat(2) } },
+      { training: { ...input.menu.meals.training, label: 'x'.repeat(101) } },
+      { constructor: input.menu.meals.training },
+      { 'bad.path': input.menu.meals.training },
+      {
+        training: {
+          ...input.menu.meals.training,
+          preparations: [
+            {
+              ...input.menu.meals.training.preparations[0],
+              instructionsEnabled: true,
+            },
+          ],
+        },
+      },
+      Object.fromEntries(
+        Array.from({ length: 21 }, (_, i) => [
+          `time_${i}`,
+          input.menu.meals.training,
+        ]),
+      ),
+    ])
+      expect(
+        createMenuSchema.safeParse({ ...input, menu: { ...input.menu, meals } })
+          .success,
+      ).toBe(false);
+  });
   it('conserva precisión, espacios y borradores excluidos sin validarlos como indicaciones', () => {
     const input = menuFixture();
     expect(createMenuSchema.parse(input)).toEqual(input);

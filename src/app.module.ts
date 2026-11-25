@@ -10,6 +10,7 @@ import { ConsultationsModule } from './modules/consultations/consultations.modul
 import { MenusModule } from './modules/menus/menus.module.js';
 import { AppointmentsModule } from './modules/appointments/appointments.module.js';
 import { DashboardModule } from './modules/dashboard/dashboard.module.js';
+import { FoodsModule } from './modules/foods/foods.module.js';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module.js';
     MenusModule,
     AppointmentsModule,
     DashboardModule,
+    FoodsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

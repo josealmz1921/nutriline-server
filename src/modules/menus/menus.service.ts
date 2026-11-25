@@ -217,7 +217,7 @@ export class MenusService {
             menuId: id,
             nutritionistId: owner,
             revision,
-            schemaVersion: 1,
+            schemaVersion: input.schemaVersion,
             capture: input.menu as Prisma.InputJsonValue,
             clientRequestId: input.clientRequestId,
             requestHash: hash,

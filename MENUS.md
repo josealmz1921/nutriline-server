@@ -1,4 +1,4 @@
-# Menús diarios persistidos · versión 1
+# Menús diarios persistidos · versiones 1, 2 y 3
 
 Uso con datos ficticios. Captura manual, independiente del consumo R24, de las
 consultas, sus cálculos y la agenda. Guardar no constituye aprobación clínica,
@@ -23,7 +23,7 @@ idéntico de una escritura ya completada sigue funcionando después del archivo.
 
 ## Contrato de escritura
 
-`{schemaVersion:1,clientRequestId,patientUpdatedAt,menu}`; PATCH exige además
+`{schemaVersion:3,clientRequestId,patientUpdatedAt,menu}`; PATCH exige además
 `expectedRevision`. UUID e instante ISO completos, sin campos adicionales.
 `menu` conserva cadenas originales (espacios y precisión decimal incluidos):
 
@@ -32,8 +32,10 @@ idéntico de una escritura ya completada sigue funcionando después del archivo.
   acredita identidad; la cuenta responsable se obtiene exclusivamente de sesión.
 - `recommendations`: opcional/vacío, máximo 3000.
 - `nextReview`: opcional/vacío; fecha válida igual o posterior al menú. No agenda.
-- `meals`: cinco claves obligatorias: breakfast, firstSnack, lunch, secondSnack,
-  dinner. Cada una tiene `status` included/notIncluded, `time` y `preparations`.
+- `meals` en versión 2: objeto de entre 1 y 20 tiempos, identificados por claves
+  estables de 1–64 caracteres alfanuméricos, guion o guion bajo (sin claves
+  reservadas de prototipo). Cada tiempo tiene `label`, nombre libre no vacío de
+  hasta 100 caracteres, `status` included/notIncluded, `time` y `preparations`.
   Al menos un tiempo incluido. Time opcional HH:mm para tiempos incluidos.
 - Preparación: name (150), quantity (12), unit (40), instructions (1000),
   substitutions (1000); cadenas, hasta 50 filas por tiempo. Nombre, cantidad
@@ -42,6 +44,13 @@ idéntico de una escritura ya completada sigue funcionando después del archivo.
 - Tiempos no incluidos conservan filas/borradores, sin exigir su completitud ni
   interpretar sus valores como indicaciones. Límites de forma/tamaño sí aplican.
   Máximo 80 KB UTF-8 de captura; se rechaza el exceso sin truncar ni descartar.
+
+La versión 1 sigue aceptándose con sus cinco claves originales obligatorias:
+breakfast, firstSnack, lunch, secondSnack y dinner, sin `label`. Las revisiones
+históricas conservan exactamente su versión y captura. El cliente actual añade
+los nombres tradicionales al editar una v1 y guarda una nueva revisión v3; no
+reescribe la revisión anterior. Los switches son estado visual de Informed:
+no se envían sus flags al servidor y sus textos desactivados se envían vacíos.
 
 La respuesta incluye ID, patientId, schemaVersion, revision, currentRevision,
 createdAt, updatedAt, revisionCreatedAt, menu y snapshots históricos de paciente y
@@ -63,6 +72,14 @@ y permite solo el mismo payload/referencia; los conflictos conservan la captura
 en pantalla hasta que el usuario decide salir y descartarla.
 
 ## Migración y activación
+
+Versión 3: agrega `ingredients` opcional a cada preparación, con hasta 50
+instantáneas de alimento, cantidad y unidad. Conserva las versiones 1 y 2 sin
+reinterpretarlas. Véase `FOODS.md` para contrato, procedencia y limitaciones.
+
+Las versiones 2 y 3 no requieren cambios en tablas ni migraciones: la captura ya es JSON
+y cada revisión guarda su propia `schemaVersion`. Publicar el servidor compatible
+antes que el cliente que envía v2.
 
 Migración aditiva `20261119090000_daily_menus`: tablas `daily_menus` y
 `daily_menu_revisions`, claves de propietario compuestas, sin reescribir pacientes

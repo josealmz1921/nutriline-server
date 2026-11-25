@@ -44,7 +44,7 @@ export const menuResponse: SchemaObject = {
   properties: {
     id,
     patientId: id,
-    schemaVersion: { type: 'integer', enum: [1] },
+    schemaVersion: { type: 'integer', enum: [1, 2, 3] },
     revision,
     currentRevision: revision,
     createdAt: instant,

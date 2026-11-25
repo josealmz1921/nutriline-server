@@ -49,6 +49,73 @@ describe('menús HTTP, guards, contrato y documentación', () => {
   afterEach(async () => {
     await app.close();
   });
+  it('acepta ingredientes v3 sin modificar sus referencias ni cantidades', async () => {
+    const legacy = menuFixture();
+    const input = {
+      ...legacy,
+      schemaVersion: 3,
+      menu: {
+        ...legacy.menu,
+        meals: {
+          custom: {
+            ...legacy.menu.meals.breakfast,
+            label: 'Mi tiempo',
+            preparations: [
+              {
+                ...legacy.menu.meals.breakfast.preparations[0],
+                ingredients: [
+                  {
+                    catalogId: '1231',
+                    catalogVersion: 'legacy-foods-2176-v1',
+                    name: 'Manzana',
+                    quantity: '0,5',
+                    unit: 'pieza',
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      },
+    };
+    service.save.mockResolvedValue({ id: menuId, schemaVersion: 3 });
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientId}/menus`)
+      .set(auth)
+      .send(input)
+      .expect(201);
+    expect(service.save).toHaveBeenCalledWith(user, patientId, input);
+  });
+  it('propaga tiempos de nombres libres en versión 2 sin adaptarlos a horarios fijos', async () => {
+    const legacy = menuFixture();
+    const input = {
+      ...legacy,
+      schemaVersion: 2,
+      menu: {
+        ...legacy.menu,
+        meals: {
+          training: {
+            ...legacy.menu.meals.breakfast,
+            label: 'Después de entrenar',
+          },
+        },
+      },
+    };
+    service.save.mockResolvedValue({ id: menuId, schemaVersion: 2 });
+    await request(app.getHttpServer())
+      .post(`/api/v1/patients/${patientId}/menus`)
+      .set(auth)
+      .send(input)
+      .expect(201);
+    expect(service.save).toHaveBeenCalledWith(user, patientId, input);
+    const edit = { ...input, expectedRevision: 1 };
+    await request(app.getHttpServer())
+      .patch(`/api/v1/menus/${menuId}`)
+      .set(auth)
+      .send(edit)
+      .expect(200);
+    expect(service.edit).toHaveBeenCalledWith(user, menuId, edit);
+  });
   it('propaga captura sin normalizar ni eliminar borradores y controla revisión', async () => {
     const input = menuFixture();
     service.save.mockResolvedValue({ id: menuId });
