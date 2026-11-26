@@ -23,6 +23,19 @@ PHP antiguo. No publicarla ni reutilizarla en producción. Se crea un paciente
 ficticio para cada nutriólogo. Repetir el seed no duplica registros ni cambia
 contraseñas/estados existentes; no sirve como herramienta para resetear cuentas.
 
+### Cuenta ADMIN adicional de prueba local
+
+- Correo: `admin.pruebas@nutriline.test`.
+- Rol: `ADMIN`; estado inicial: `ACTIVE`.
+- Creada directamente en la base local `nutriline`, fuera del seed de demostración.
+  No se crea automáticamente al clonar el proyecto ni al ejecutar el seed.
+- Contraseña inicial aleatoria, entregada al responsable en la conversación de
+  creación; no se guarda en este documento ni en el repositorio y no corresponde
+  a `DEMO_PASSWORD`. Puede cambiarse desde `/seguridad`.
+- Tras iniciar sesión en el cliente, se dirige a `/admin`: usuarios, soporte y
+  bitácora. No tiene acceso a expedientes clínicos. Uso exclusivo para pruebas
+  locales, nunca para producción ni para pruebas automatizadas.
+
 ## Endpoints
 
 Base: `http://localhost:3001/api/v1`.
@@ -99,7 +112,8 @@ cookies/CSRF antes de cambiar SameSite; no está habilitado por conveniencia.
 
 ## Permisos
 
-- `ADMIN`: identidad y futuras funciones administrativas/catálogos.
+- `ADMIN`: identidad, consulta de usuarios, bloqueo/desbloqueo de cuentas no
+  administradoras, gestión de soporte y lectura de bitácora.
 - `NUTRITIONIST`: identidad, pacientes y consultas propias; dietas pendientes.
 - No existe rol de paciente en esta versión.
 - Roles no implican jerarquía: ADMIN no hereda permisos clínicos.
@@ -107,7 +121,8 @@ cookies/CSRF antes de cambiar SameSite; no está habilitado por conveniencia.
 - El rol actual viene de DB, no del cuerpo de login ni de un claim obsoleto.
 - Los endpoints de pacientes ya filtran por propietario: ver [PATIENTS.md](PATIENTS.md).
   Consultas clínicas disponibles: [CONSULTATIONS.md](CONSULTATIONS.md).
-  No existe todavía CRUD administrativo.
+  Administración y soporte disponibles: [SUPPORT.md](SUPPORT.md). No hay registro
+  público ni creación de usuarios desde el panel administrativo.
 
 ## Límites y errores
 
