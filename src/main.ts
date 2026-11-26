@@ -6,6 +6,7 @@ import { setupApp } from './setup-app.js';
 
 async function bootstrap() {
   // Observe no se inicializa hasta completar la revisión de privacidad.
+  // test
   const app = await NestFactory.create(AppModule);
   setupApp(app);
   const config = app.get<ConfigService<Environment, true>>(ConfigService);
